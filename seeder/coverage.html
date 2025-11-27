@@ -1,0 +1,595 @@
+
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+		<title>seeder: Go Coverage Report</title>
+		<style>
+			body {
+				background: black;
+				color: rgb(80, 80, 80);
+			}
+			body, pre, #legend span {
+				font-family: Menlo, monospace;
+				font-weight: bold;
+			}
+			#topbar {
+				background: black;
+				position: fixed;
+				top: 0; left: 0; right: 0;
+				height: 42px;
+				border-bottom: 1px solid rgb(80, 80, 80);
+			}
+			#content {
+				margin-top: 50px;
+			}
+			#nav, #legend {
+				float: left;
+				margin-left: 10px;
+			}
+			#legend {
+				margin-top: 12px;
+			}
+			#nav {
+				margin-top: 10px;
+			}
+			#legend span {
+				margin: 0 5px;
+			}
+			.cov0 { color: rgb(192, 0, 0) }
+.cov1 { color: rgb(128, 128, 128) }
+.cov2 { color: rgb(116, 140, 131) }
+.cov3 { color: rgb(104, 152, 134) }
+.cov4 { color: rgb(92, 164, 137) }
+.cov5 { color: rgb(80, 176, 140) }
+.cov6 { color: rgb(68, 188, 143) }
+.cov7 { color: rgb(56, 200, 146) }
+.cov8 { color: rgb(44, 212, 149) }
+.cov9 { color: rgb(32, 224, 152) }
+.cov10 { color: rgb(20, 236, 155) }
+
+		</style>
+	</head>
+	<body>
+		<div id="topbar">
+			<div id="nav">
+				<select id="files">
+				
+				<option value="file0">github.com/fulgidus/libreseed/seeder/cmd/seeder/main.go (0.0%)</option>
+				
+				<option value="file1">github.com/fulgidus/libreseed/seeder/internal/cli/root.go (0.0%)</option>
+				
+				<option value="file2">github.com/fulgidus/libreseed/seeder/internal/cli/start.go (0.0%)</option>
+				
+				<option value="file3">github.com/fulgidus/libreseed/seeder/internal/cli/version.go (0.0%)</option>
+				
+				<option value="file4">github.com/fulgidus/libreseed/seeder/internal/config/config.go (84.6%)</option>
+				
+				<option value="file5">github.com/fulgidus/libreseed/seeder/internal/logging/logger.go (92.9%)</option>
+				
+				</select>
+			</div>
+			<div id="legend">
+				<span>not tracked</span>
+			
+				<span class="cov0">no coverage</span>
+				<span class="cov1">low coverage</span>
+				<span class="cov2">*</span>
+				<span class="cov3">*</span>
+				<span class="cov4">*</span>
+				<span class="cov5">*</span>
+				<span class="cov6">*</span>
+				<span class="cov7">*</span>
+				<span class="cov8">*</span>
+				<span class="cov9">*</span>
+				<span class="cov10">high coverage</span>
+			
+			</div>
+		</div>
+		<div id="content">
+		
+		<pre class="file" id="file0" style="display: none">package main
+
+import (
+        "os"
+
+        "github.com/fulgidus/libreseed/seeder/internal/cli"
+)
+
+func main() <span class="cov0" title="0">{
+        if err := cli.Execute(); err != nil </span><span class="cov0" title="0">{
+                os.Exit(1)
+        }</span>
+}
+</pre>
+		
+		<pre class="file" id="file1" style="display: none">package cli
+
+import (
+        "fmt"
+        "os"
+
+        "github.com/spf13/cobra"
+        "github.com/spf13/viper"
+        "go.uber.org/zap"
+
+        "github.com/fulgidus/libreseed/seeder/internal/config"
+        "github.com/fulgidus/libreseed/seeder/internal/logging"
+)
+
+var (
+        cfgFile string
+        logger  *zap.Logger
+)
+
+// rootCmd represents the base command when called without any subcommands
+var rootCmd = &amp;cobra.Command{
+        Use:   "seeder",
+        Short: "LibreSeed Seeder - Decentralized package distribution",
+        Long: `LibreSeed Seeder is a BitTorrent-based content seeding service
+that enables decentralized distribution of packages and content.
+
+It supports:
+  - DHT for peer discovery
+  - Content manifest management
+  - Multi-torrent seeding
+  - Bandwidth and storage management`,
+        PersistentPreRunE: func(cmd *cobra.Command, args []string) error <span class="cov0" title="0">{
+                // Initialize logger first
+                var err error
+                logger, err = logging.NewLogger(viper.GetString("log.level"), viper.GetString("log.format"))
+                if err != nil </span><span class="cov0" title="0">{
+                        return fmt.Errorf("failed to initialize logger: %w", err)
+                }</span>
+
+                <span class="cov0" title="0">return nil</span>
+        },
+        PersistentPostRun: func(cmd *cobra.Command, args []string) <span class="cov0" title="0">{
+                if logger != nil </span><span class="cov0" title="0">{
+                        _ = logger.Sync()
+                }</span>
+        },
+}
+
+// Execute adds all child commands to the root command and sets flags appropriately.
+// This is called by main.main(). It only needs to happen once to the rootCmd.
+func Execute() error <span class="cov0" title="0">{
+        return rootCmd.Execute()
+}</span>
+
+func init() <span class="cov0" title="0">{
+        cobra.OnInitialize(initConfig)
+
+        // Global persistent flags
+        rootCmd.PersistentFlags().StringVar(&amp;cfgFile, "config", "", "config file (default is ./seeder.yaml)")
+        rootCmd.PersistentFlags().String("log-level", "info", "log level (debug, info, warn, error)")
+        rootCmd.PersistentFlags().String("log-format", "json", "log format (json, console)")
+
+        // Bind flags to viper
+        _ = viper.BindPFlag("log.level", rootCmd.PersistentFlags().Lookup("log-level"))
+        _ = viper.BindPFlag("log.format", rootCmd.PersistentFlags().Lookup("log-format"))
+}</span>
+
+// initConfig reads in config file and ENV variables if set.
+func initConfig() <span class="cov0" title="0">{
+        if cfgFile != "" </span><span class="cov0" title="0">{
+                // Use config file from the flag.
+                viper.SetConfigFile(cfgFile)
+        }</span> else<span class="cov0" title="0"> {
+                // Search for config in current directory
+                viper.AddConfigPath(".")
+                viper.AddConfigPath("./configs")
+                viper.SetConfigName("seeder")
+                viper.SetConfigType("yaml")
+        }</span>
+
+        // Environment variables
+        <span class="cov0" title="0">viper.SetEnvPrefix("SEEDER")
+        viper.AutomaticEnv()
+
+        // Load configuration using the config loader
+        cfg, err := config.LoadConfig()
+        if err != nil </span><span class="cov0" title="0">{
+                fmt.Fprintf(os.Stderr, "Warning: failed to load config: %v\n", err)
+                // Continue with defaults
+        }</span>
+
+        // If config was loaded successfully, merge it into viper
+        <span class="cov0" title="0">if cfg != nil </span><span class="cov0" title="0">{
+                // Viper already has the config loaded, just log success
+                if viper.ConfigFileUsed() != "" </span><span class="cov0" title="0">{
+                        fmt.Fprintf(os.Stderr, "Using config file: %s\n", viper.ConfigFileUsed())
+                }</span>
+        }
+}
+</pre>
+		
+		<pre class="file" id="file2" style="display: none">package cli
+
+import (
+        "context"
+        "fmt"
+        "os"
+        "os/signal"
+        "syscall"
+
+        "github.com/spf13/cobra"
+        "github.com/spf13/viper"
+        "go.uber.org/zap"
+
+        "github.com/fulgidus/libreseed/seeder/internal/config"
+)
+
+// startCmd represents the start command
+var startCmd = &amp;cobra.Command{
+        Use:   "start",
+        Short: "Start the seeder service",
+        Long: `Start the LibreSeed seeder service to begin seeding content.
+
+The seeder will:
+  1. Load configuration from file and environment
+  2. Initialize DHT for peer discovery
+  3. Load content manifests
+  4. Start seeding torrents
+  5. Serve metrics and health endpoints`,
+        RunE: runStart,
+}
+
+func init() <span class="cov0" title="0">{
+        rootCmd.AddCommand(startCmd)
+
+        // Start-specific flags
+        startCmd.Flags().String("data-dir", "", "data directory for torrents and state")
+        startCmd.Flags().Int("port", 0, "port for BitTorrent protocol")
+        startCmd.Flags().String("bind", "", "bind address for services")
+
+        // Bind flags to viper
+        _ = viper.BindPFlag("storage.data_dir", startCmd.Flags().Lookup("data-dir"))
+        _ = viper.BindPFlag("network.port", startCmd.Flags().Lookup("port"))
+        _ = viper.BindPFlag("network.bind_address", startCmd.Flags().Lookup("bind"))
+}</span>
+
+func runStart(cmd *cobra.Command, args []string) error <span class="cov0" title="0">{
+        // Get the full configuration
+        cfg, err := config.LoadConfig()
+        if err != nil </span><span class="cov0" title="0">{
+                return fmt.Errorf("failed to load configuration: %w", err)
+        }</span>
+
+        <span class="cov0" title="0">logger.Info("Starting LibreSeed Seeder",
+                zap.String("version", Version),
+                zap.String("data_dir", cfg.Storage.DataDir),
+                zap.Int("port", cfg.Network.Port),
+        )
+
+        // Validate configuration
+        if err := cfg.Validate(); err != nil </span><span class="cov0" title="0">{
+                return fmt.Errorf("configuration validation failed: %w", err)
+        }</span>
+
+        // Create context with cancellation
+        <span class="cov0" title="0">ctx, cancel := context.WithCancel(context.Background())
+        defer cancel()
+
+        // Setup signal handling
+        sigCh := make(chan os.Signal, 1)
+        signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
+
+        // Start service components (placeholder for future implementation)
+        logger.Info("Seeder service starting",
+                zap.String("bind_address", cfg.Network.BindAddress),
+                zap.Int("port", cfg.Network.Port),
+        )
+
+        // TODO Week 2-3: Initialize DHT
+        // TODO Week 3-4: Load manifests
+        // TODO Week 4-5: Start torrent engine
+        // TODO Week 6: Start metrics server
+
+        logger.Info("Seeder service started successfully")
+        logger.Info("Press Ctrl+C to stop")
+
+        // Wait for shutdown signal
+        select </span>{
+        case sig := &lt;-sigCh:<span class="cov0" title="0">
+                logger.Info("Received shutdown signal", zap.String("signal", sig.String()))</span>
+        case &lt;-ctx.Done():<span class="cov0" title="0">
+                logger.Info("Context cancelled")</span>
+        }
+
+        // Graceful shutdown
+        <span class="cov0" title="0">logger.Info("Shutting down seeder service...")
+
+        // TODO: Shutdown components
+        // - Stop torrent engine
+        // - Close DHT
+        // - Flush metrics
+
+        logger.Info("Seeder service stopped")
+        return nil</span>
+}
+</pre>
+		
+		<pre class="file" id="file3" style="display: none">package cli
+
+import (
+        "fmt"
+        "runtime"
+
+        "github.com/spf13/cobra"
+)
+
+var (
+        // Version information - set at build time
+        Version   = "0.1.0-alpha"
+        GitCommit = "dev"
+        BuildDate = "unknown"
+)
+
+// versionCmd represents the version command
+var versionCmd = &amp;cobra.Command{
+        Use:   "version",
+        Short: "Print version information",
+        Long:  `Display the version, git commit, and build date of the seeder.`,
+        Run: func(cmd *cobra.Command, args []string) <span class="cov0" title="0">{
+                fmt.Printf("LibreSeed Seeder\n")
+                fmt.Printf("  Version:    %s\n", Version)
+                fmt.Printf("  Git Commit: %s\n", GitCommit)
+                fmt.Printf("  Build Date: %s\n", BuildDate)
+                fmt.Printf("  Go Version: %s\n", runtime.Version())
+                fmt.Printf("  OS/Arch:    %s/%s\n", runtime.GOOS, runtime.GOARCH)
+        }</span>,
+}
+
+func init() <span class="cov0" title="0">{
+        rootCmd.AddCommand(versionCmd)
+}</span>
+</pre>
+		
+		<pre class="file" id="file4" style="display: none">package config
+
+import (
+        "errors"
+        "fmt"
+        "os"
+        "time"
+
+        "github.com/spf13/viper"
+)
+
+// Config represents the complete seeder configuration
+type Config struct {
+        Server   ServerConfig   `mapstructure:"server"`
+        Network  NetworkConfig  `mapstructure:"network"`
+        DHT      DHTConfig      `mapstructure:"dht"`
+        Storage  StorageConfig  `mapstructure:"storage"`
+        Limits   LimitsConfig   `mapstructure:"limits"`
+        Manifest ManifestConfig `mapstructure:"manifest"`
+        Log      LogConfig      `mapstructure:"log"`
+}
+
+// ServerConfig contains server-level settings
+type ServerConfig struct {
+        MetricsPort int `mapstructure:"metrics_port"`
+        HealthPort  int `mapstructure:"health_port"`
+}
+
+// NetworkConfig contains network settings
+type NetworkConfig struct {
+        BindAddress string `mapstructure:"bind_address"`
+        Port        int    `mapstructure:"port"`
+        EnableIPv6  bool   `mapstructure:"enable_ipv6"`
+}
+
+// DHTConfig contains DHT settings
+type DHTConfig struct {
+        Enabled        bool     `mapstructure:"enabled"`
+        BootstrapPeers []string `mapstructure:"bootstrap_peers"`
+}
+
+// StorageConfig contains storage settings
+type StorageConfig struct {
+        DataDir      string `mapstructure:"data_dir"`
+        MaxDiskUsage string `mapstructure:"max_disk_usage"`
+        CacheSizeMB  int    `mapstructure:"cache_size_mb"`
+}
+
+// LimitsConfig contains bandwidth and connection limits
+type LimitsConfig struct {
+        MaxUploadKBps     int `mapstructure:"max_upload_kbps"`
+        MaxDownloadKBps   int `mapstructure:"max_download_kbps"`
+        MaxConnections    int `mapstructure:"max_connections"`
+        MaxActiveTorrents int `mapstructure:"max_active_torrents"`
+}
+
+// ManifestConfig contains manifest management settings
+type ManifestConfig struct {
+        Source          string        `mapstructure:"source"`
+        RefreshInterval time.Duration `mapstructure:"refresh_interval"`
+}
+
+// LogConfig contains logging settings
+type LogConfig struct {
+        Level  string `mapstructure:"level"`
+        Format string `mapstructure:"format"`
+}
+
+// DefaultConfig returns a configuration with sensible defaults
+func DefaultConfig() *Config <span class="cov6" title="4">{
+        return &amp;Config{
+                Server: ServerConfig{
+                        MetricsPort: 9090,
+                        HealthPort:  8080,
+                },
+                Network: NetworkConfig{
+                        BindAddress: "0.0.0.0",
+                        Port:        6881,
+                        EnableIPv6:  true,
+                },
+                DHT: DHTConfig{
+                        Enabled: true,
+                        BootstrapPeers: []string{
+                                "router.bittorrent.com:6881",
+                                "dht.transmissionbt.com:6881",
+                        },
+                },
+                Storage: StorageConfig{
+                        DataDir:      "./data",
+                        MaxDiskUsage: "50GB",
+                        CacheSizeMB:  256,
+                },
+                Limits: LimitsConfig{
+                        MaxUploadKBps:     0, // 0 = unlimited
+                        MaxDownloadKBps:   0,
+                        MaxConnections:    200,
+                        MaxActiveTorrents: 100,
+                },
+                Manifest: ManifestConfig{
+                        Source:          "",
+                        RefreshInterval: 1 * time.Hour,
+                },
+                Log: LogConfig{
+                        Level:  "info",
+                        Format: "json",
+                },
+        }
+}</span>
+
+// Validate checks if the configuration is valid
+func (c *Config) Validate() error <span class="cov8" title="6">{
+        // Validate network port
+        if c.Network.Port &lt; 1024 || c.Network.Port &gt; 65535 </span><span class="cov3" title="2">{
+                return fmt.Errorf("network.port must be between 1024 and 65535")
+        }</span>
+
+        // Validate log level
+        <span class="cov6" title="4">validLogLevels := []string{"debug", "info", "warn", "error"}
+        validLevel := false
+        for _, level := range validLogLevels </span><span class="cov10" title="10">{
+                if c.Log.Level == level </span><span class="cov5" title="3">{
+                        validLevel = true
+                        break</span>
+                }
+        }
+        <span class="cov6" title="4">if !validLevel </span><span class="cov1" title="1">{
+                return fmt.Errorf("log.level must be one of: debug, info, warn, error")
+        }</span>
+
+        // Validate log format
+        <span class="cov5" title="3">if c.Log.Format != "json" &amp;&amp; c.Log.Format != "console" </span><span class="cov1" title="1">{
+                return fmt.Errorf("log.format must be 'json' or 'console'")
+        }</span>
+
+        // Validate data directory
+        <span class="cov3" title="2">if c.Storage.DataDir == "" </span><span class="cov1" title="1">{
+                return fmt.Errorf("storage.data_dir cannot be empty")
+        }</span>
+
+        // Check if data directory exists or can be created
+        <span class="cov1" title="1">if _, err := os.Stat(c.Storage.DataDir); os.IsNotExist(err) </span><span class="cov0" title="0">{
+                if err := os.MkdirAll(c.Storage.DataDir, 0755); err != nil </span><span class="cov0" title="0">{
+                        return fmt.Errorf("failed to create data directory: %w", err)
+                }</span>
+        }
+
+        <span class="cov1" title="1">return nil</span>
+}
+
+// LoadConfig loads configuration from file, environment, and flags
+func LoadConfig() (*Config, error) <span class="cov3" title="2">{
+        // Start with defaults
+        cfg := DefaultConfig()
+
+        // Try to read config file
+        if err := viper.ReadInConfig(); err != nil </span><span class="cov1" title="1">{
+                // Check if it's a "config file not found" error
+                // This covers both ConfigFileNotFoundError (search paths) and file not exist (SetConfigFile)
+                if _, ok := err.(viper.ConfigFileNotFoundError); !ok &amp;&amp; !errors.Is(err, os.ErrNotExist) </span><span class="cov0" title="0">{
+                        // Config file was found but another error occurred (e.g., parse error, permission denied)
+                        return nil, fmt.Errorf("error reading config file: %w", err)
+                }</span>
+                // Config file not found; ignore error and use defaults
+        }
+
+        // Unmarshal into config struct
+        <span class="cov3" title="2">if err := viper.Unmarshal(cfg); err != nil </span><span class="cov0" title="0">{
+                return nil, fmt.Errorf("failed to unmarshal config: %w", err)
+        }</span>
+
+        <span class="cov3" title="2">return cfg, nil</span>
+}
+</pre>
+		
+		<pre class="file" id="file5" style="display: none">package logging
+
+import (
+        "fmt"
+        "strings"
+
+        "go.uber.org/zap"
+        "go.uber.org/zap/zapcore"
+)
+
+// NewLogger creates a new zap logger with the specified level and format
+func NewLogger(level, format string) (*zap.Logger, error) <span class="cov10" title="14">{
+        // Parse log level
+        var zapLevel zapcore.Level
+        if err := zapLevel.UnmarshalText([]byte(level)); err != nil </span><span class="cov1" title="1">{
+                return nil, fmt.Errorf("invalid log level %q: %w", level, err)
+        }</span>
+
+        // Create config based on format (case-insensitive)
+        <span class="cov9" title="13">var cfg zap.Config
+        switch strings.ToLower(format) </span>{
+        case "json":<span class="cov8" title="9">
+                cfg = zap.NewProductionConfig()</span>
+        case "console":<span class="cov4" title="3">
+                cfg = zap.NewDevelopmentConfig()
+                cfg.EncoderConfig.EncodeLevel = zapcore.CapitalColorLevelEncoder</span>
+        default:<span class="cov1" title="1">
+                return nil, fmt.Errorf("invalid log format %q, must be 'json' or 'console'", format)</span>
+        }
+
+        // Set level
+        <span class="cov9" title="12">cfg.Level = zap.NewAtomicLevelAt(zapLevel)
+
+        // Build logger
+        logger, err := cfg.Build()
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, fmt.Errorf("failed to build logger: %w", err)
+        }</span>
+
+        <span class="cov9" title="12">return logger, nil</span>
+}
+</pre>
+		
+		</div>
+	</body>
+	<script>
+	(function() {
+		var files = document.getElementById('files');
+		var visible;
+		files.addEventListener('change', onChange, false);
+		function select(part) {
+			if (visible)
+				visible.style.display = 'none';
+			visible = document.getElementById(part);
+			if (!visible)
+				return;
+			files.value = part;
+			visible.style.display = 'block';
+			location.hash = part;
+		}
+		function onChange() {
+			select(files.value);
+			window.scrollTo(0, 0);
+		}
+		if (location.hash != "") {
+			select(location.hash.substr(1));
+		}
+		if (!visible) {
+			select("file0");
+		}
+	})();
+	</script>
+</html>

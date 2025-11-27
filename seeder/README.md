@@ -15,7 +15,7 @@ For detailed architecture and design decisions, see [docs/OVERVIEW.md](docs/OVER
 
 ### Prerequisites
 
-- **Go:** 1.21 or later
+- **Go:** 1.21 or later (tested with 1.24.4)
 - **OS:** Linux, macOS, or Windows
 - **Storage:** Minimum 10GB free space recommended
 
@@ -29,17 +29,26 @@ cd libreseed/seeder
 # Build binary
 make build
 
-# Binary will be created at: bin/seeder
+# Binary will be created at: build/seeder
 ```
 
 ### Run
 
 ```bash
-# Display version
-./bin/seeder --version
+# Display version and build information
+./build/seeder version
 
-# Run with default configuration (coming soon)
-# ./bin/seeder start
+# Display help
+./build/seeder --help
+
+# Run with default configuration (Phase 2 - coming soon)
+# ./build/seeder start
+
+# Run with custom config file (Phase 2 - coming soon)
+# ./build/seeder start --config /path/to/config.yaml
+
+# Run with specific log level (Phase 2 - coming soon)
+# ./build/seeder start --log-level debug --log-format console
 ```
 
 ## Development
@@ -71,18 +80,50 @@ seeder/
 # Build binary
 make build
 
-# Run tests
+# Run tests with race detection
 make test
+
+# Generate test coverage report (HTML)
+make test-coverage
 
 # Clean build artifacts
 make clean
 
-# Build for all platforms
+# Build for all platforms (Linux, macOS, Windows)
 make build-all
+
+# Format Go code
+make fmt
+
+# Run linters
+make lint
 
 # Display help
 make help
 ```
+
+### Testing
+
+The project uses Go's built-in testing framework with table-driven tests and race detection:
+
+```bash
+# Run all tests with verbose output
+go test -v -race ./...
+
+# Run tests for a specific package
+go test -v ./internal/config/...
+
+# Run with coverage
+go test -v -race -cover ./...
+
+# Generate coverage report
+make test-coverage
+# Open coverage.html in your browser
+```
+
+**Current Test Coverage:**
+- `internal/config`: 84.6% (4 tests, 12 subtests)
+- `internal/logging`: 92.9% (3 tests, 15 subtests)
 
 ### Dependencies
 

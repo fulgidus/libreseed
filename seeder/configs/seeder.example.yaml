@@ -3,84 +3,75 @@
 
 # Server configuration
 server:
-  # Address to bind the HTTP API server
-  bind_address: "0.0.0.0:8080"
+  # Port for Prometheus metrics endpoint
+  metrics_port: 9090
   
-  # Enable HTTP API server for metrics and management
-  enable_api: true
-  
-  # Read timeout for HTTP requests (in seconds)
-  read_timeout: 30
-  
-  # Write timeout for HTTP responses (in seconds)
-  write_timeout: 30
+  # Port for health check endpoint
+  health_port: 8080
 
 # Network configuration
 network:
-  # Enable IPv4 connectivity
-  enable_ipv4: true
+  # Address to bind for network operations (BitTorrent, DHT)
+  bind_address: "0.0.0.0"
+  
+  # Port for BitTorrent and DHT protocol (TCP/UDP)
+  port: 6881
   
   # Enable IPv6 connectivity
   enable_ipv6: true
-  
-  # Port for BitTorrent protocol (TCP/UDP)
-  port: 6881
-  
-  # Maximum number of peer connections
-  max_connections: 200
 
 # DHT (Distributed Hash Table) configuration
 dht:
-  # Enable DHT for peer discovery
+  # Enable DHT for peer discovery and manifest distribution
   enabled: true
   
-  # DHT bootstrap nodes (comma-separated)
-  # These are public DHT nodes used for initial network join
-  bootstrap_nodes:
+  # DHT bootstrap peers for initial network join
+  # These are public DHT nodes used to join the network
+  bootstrap_peers:
     - "router.bittorrent.com:6881"
     - "dht.transmissionbt.com:6881"
     - "router.utorrent.com:6881"
-  
-  # Port for DHT protocol (UDP)
-  port: 6881
 
 # Storage configuration
 storage:
-  # Base directory for storing manifests
-  manifest_dir: "./data/manifests"
+  # Base directory for all data (manifests, torrents, cache)
+  data_dir: "./data"
   
-  # Base directory for caching torrent data
-  cache_dir: "./data/cache"
+  # Maximum disk usage (supports: KB, MB, GB, TB)
+  # Example: "50GB", "500MB", "1TB"
+  max_disk_usage: "50GB"
   
-  # Maximum cache size in bytes (1GB = 1073741824)
-  # Set to 0 for unlimited
-  max_cache_size: 1073741824
+  # Cache size in megabytes for torrent data
+  cache_size_mb: 256
 
 # Rate limiting and resource constraints
 limits:
-  # Maximum upload rate in bytes per second
+  # Maximum upload rate in kilobytes per second
   # Set to 0 for unlimited
-  max_upload_rate: 0
+  max_upload_kbps: 0
   
-  # Maximum download rate in bytes per second
+  # Maximum download rate in kilobytes per second
   # Set to 0 for unlimited
-  max_download_rate: 0
+  max_download_kbps: 0
+  
+  # Maximum number of simultaneous peer connections
+  max_connections: 200
   
   # Maximum number of active torrents to seed simultaneously
-  max_active_torrents: 50
+  max_active_torrents: 100
 
 # Manifest management
 manifest:
-  # Interval for checking manifest updates (in seconds)
-  refresh_interval: 300
+  # Manifest source (URL or local file path)
+  # Examples:
+  #   - "https://example.com/manifests/packages.yaml"
+  #   - "file:///path/to/local/manifest.yaml"
+  #   - Leave empty to disable automatic manifest loading
+  source: ""
   
-  # Enable automatic manifest refresh
-  auto_refresh: true
-  
-  # Manifest sources (URLs or file paths)
-  sources:
-    - "https://example.com/manifests/packages.yaml"
-    # - "file:///path/to/local/manifest.yaml"
+  # Interval for checking manifest updates (duration format)
+  # Examples: "1h", "30m", "2h30m"
+  refresh_interval: 1h
 
 # Logging configuration
 log:
@@ -89,6 +80,3 @@ log:
   
   # Log format: json, console
   format: "console"
-  
-  # Log file path (optional, logs to stdout if not set)
-  # file: "./logs/seeder.log"

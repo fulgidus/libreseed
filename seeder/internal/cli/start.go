@@ -13,8 +13,39 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/fulgidus/libreseed/seeder/internal/config"
+	"github.com/fulgidus/libreseed/seeder/internal/dht"
 	"github.com/fulgidus/libreseed/seeder/internal/torrent"
 )
+
+// zapLoggerAdapter adapts zap.Logger to the dht.Logger interface.
+type zapLoggerAdapter struct {
+	logger *zap.Logger
+}
+
+// newZapLoggerAdapter creates a new zap logger adapter.
+func newZapLoggerAdapter(logger *zap.Logger) dht.Logger {
+	return &zapLoggerAdapter{logger: logger}
+}
+
+// Debugf implements dht.Logger.
+func (a *zapLoggerAdapter) Debugf(format string, args ...interface{}) {
+	a.logger.Debug(fmt.Sprintf(format, args...))
+}
+
+// Infof implements dht.Logger.
+func (a *zapLoggerAdapter) Infof(format string, args ...interface{}) {
+	a.logger.Info(fmt.Sprintf(format, args...))
+}
+
+// Warnf implements dht.Logger.
+func (a *zapLoggerAdapter) Warnf(format string, args ...interface{}) {
+	a.logger.Warn(fmt.Sprintf(format, args...))
+}
+
+// Errorf implements dht.Logger.
+func (a *zapLoggerAdapter) Errorf(format string, args ...interface{}) {
+	a.logger.Error(fmt.Sprintf(format, args...))
+}
 
 // startCmd represents the start command
 var startCmd = &cobra.Command{
@@ -85,7 +116,43 @@ func runStart(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to start torrent engine: %w", err)
 	}
 
-	// TODO Week 2-3: Initialize DHT (integrated in engine)
+	// Initialize DHT manager if enabled
+	var dhtManager *dht.Manager
+	if cfg.DHT.Enabled {
+		logger.Info("Initializing DHT manager",
+			zap.Int("port", cfg.Network.Port),
+			zap.Strings("bootstrap_peers", cfg.DHT.BootstrapPeers),
+		)
+
+		// Create DHT configuration
+		dhtCfg := dht.ManagerConfig{
+			BootstrapNodes: cfg.DHT.BootstrapPeers,
+			Port:           cfg.Network.Port,
+			Logger:         newZapLoggerAdapter(logger),
+		}
+
+		// Create DHT manager
+		var err error
+		dhtManager, err = dht.NewManager(dhtCfg)
+		if err != nil {
+			logger.Error("Failed to create DHT manager", zap.Error(err))
+			logger.Warn("Continuing without DHT - peer discovery will be limited")
+			dhtManager = nil
+		} else {
+			// Start DHT
+			if err := dhtManager.Start(); err != nil {
+				// Non-fatal error - continue without DHT
+				logger.Error("Failed to start DHT manager", zap.Error(err))
+				logger.Warn("Continuing without DHT - peer discovery will be limited")
+				dhtManager = nil
+			} else {
+				logger.Info("DHT manager started successfully")
+			}
+		}
+	} else {
+		logger.Info("DHT disabled in configuration")
+	}
+
 	// TODO Week 3-4: Load manifests
 	// TODO Week 6: Start metrics server
 
@@ -107,14 +174,22 @@ func runStart(cmd *cobra.Command, args []string) error {
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer shutdownCancel()
 
+	// Stop DHT manager if running
+	if dhtManager != nil {
+		logger.Info("Stopping DHT manager...")
+		if err := dhtManager.Stop(); err != nil {
+			logger.Error("Error stopping DHT manager", zap.Error(err))
+		} else {
+			logger.Info("DHT manager stopped successfully")
+		}
+	}
+
 	// Stop torrent engine
 	if err := engine.Stop(shutdownCtx); err != nil {
 		logger.Error("Error stopping torrent engine", zap.Error(err))
 	}
 
-	// TODO: Shutdown additional components
-	// - Close DHT (integrated in engine)
-	// - Flush metrics
+	// TODO Week 6: Flush metrics
 
 	logger.Info("Seeder service stopped")
 	return nil

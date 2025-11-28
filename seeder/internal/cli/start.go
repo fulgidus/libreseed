@@ -6,12 +6,14 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
 
 	"github.com/fulgidus/libreseed/seeder/internal/config"
+	"github.com/fulgidus/libreseed/seeder/internal/torrent"
 )
 
 // startCmd represents the start command
@@ -70,15 +72,21 @@ func runStart(cmd *cobra.Command, args []string) error {
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
 
-	// Start service components (placeholder for future implementation)
-	logger.Info("Seeder service starting",
+	// Initialize the torrent engine
+	logger.Info("Initializing torrent engine",
 		zap.String("bind_address", cfg.Network.BindAddress),
 		zap.Int("port", cfg.Network.Port),
 	)
 
-	// TODO Week 2-3: Initialize DHT
+	engine := torrent.NewEngine(cfg, logger)
+
+	// Start the torrent engine
+	if err := engine.Start(ctx); err != nil {
+		return fmt.Errorf("failed to start torrent engine: %w", err)
+	}
+
+	// TODO Week 2-3: Initialize DHT (integrated in engine)
 	// TODO Week 3-4: Load manifests
-	// TODO Week 4-5: Start torrent engine
 	// TODO Week 6: Start metrics server
 
 	logger.Info("Seeder service started successfully")
@@ -95,9 +103,17 @@ func runStart(cmd *cobra.Command, args []string) error {
 	// Graceful shutdown
 	logger.Info("Shutting down seeder service...")
 
-	// TODO: Shutdown components
-	// - Stop torrent engine
-	// - Close DHT
+	// Create shutdown context with timeout
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer shutdownCancel()
+
+	// Stop torrent engine
+	if err := engine.Stop(shutdownCtx); err != nil {
+		logger.Error("Error stopping torrent engine", zap.Error(err))
+	}
+
+	// TODO: Shutdown additional components
+	// - Close DHT (integrated in engine)
 	// - Flush metrics
 
 	logger.Info("Seeder service stopped")

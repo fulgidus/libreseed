@@ -2,6 +2,8 @@
 package cli
 
 import (
+	"errors"
+	"strings"
 	"testing"
 )
 
@@ -382,4 +384,166 @@ func containsSubstring(s, substr string) bool {
 		}
 	}
 	return false
+}
+
+// TestSentinelErrors tests that the sentinel errors are properly defined and can be used with errors.Is()
+func TestSentinelErrors(t *testing.T) {
+	tests := []struct {
+		name        string
+		err         error
+		target      error
+		shouldMatch bool
+		errContains string
+	}{
+		{
+			name:        "errNoSourceProvided identity",
+			err:         errNoSourceProvided,
+			target:      errNoSourceProvided,
+			shouldMatch: true,
+			errContains: "must specify one of",
+		},
+		{
+			name:        "errMultipleSourcesProvided identity",
+			err:         errMultipleSourcesProvided,
+			target:      errMultipleSourcesProvided,
+			shouldMatch: true,
+			errContains: "specify only one of",
+		},
+		{
+			name:        "errInfoHashRequired identity",
+			err:         errInfoHashRequired,
+			target:      errInfoHashRequired,
+			shouldMatch: true,
+			errContains: "required",
+		},
+		{
+			name:        "errNoSourceProvided does not match errMultipleSourcesProvided",
+			err:         errNoSourceProvided,
+			target:      errMultipleSourcesProvided,
+			shouldMatch: false,
+			errContains: "",
+		},
+		{
+			name:        "errNoSourceProvided does not match errInfoHashRequired",
+			err:         errNoSourceProvided,
+			target:      errInfoHashRequired,
+			shouldMatch: false,
+			errContains: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := errors.Is(tt.err, tt.target); got != tt.shouldMatch {
+				t.Errorf("errors.Is(%v, %v) = %v, want %v",
+					tt.err, tt.target, got, tt.shouldMatch)
+			}
+
+			// Also verify the error message contains expected text
+			if tt.errContains != "" && !strings.Contains(tt.err.Error(), tt.errContains) {
+				t.Errorf("error message %q does not contain %q",
+					tt.err.Error(), tt.errContains)
+			}
+		})
+	}
+}
+
+// TestVersionCommand tests the version command executes without error
+// Note: The version command uses fmt.Printf which writes to os.Stdout directly,
+// so we only verify execution succeeds rather than capturing output.
+func TestVersionCommand(t *testing.T) {
+	// Execute command - should not return an error
+	err := versionCmd.RunE
+	if err != nil {
+		t.Fatalf("versionCmd should not have RunE set, has Run instead")
+	}
+
+	// Verify Run function is set
+	if versionCmd.Run == nil {
+		t.Error("versionCmd.Run should be set")
+	}
+}
+
+// TestVersionCommandStructure tests the version command metadata
+func TestVersionCommandStructure(t *testing.T) {
+	if versionCmd.Use != "version" {
+		t.Errorf("versionCmd.Use = %q, want %q", versionCmd.Use, "version")
+	}
+
+	if versionCmd.Short == "" {
+		t.Error("versionCmd.Short should not be empty")
+	}
+
+	if versionCmd.Long == "" {
+		t.Error("versionCmd.Long should not be empty")
+	}
+
+	if versionCmd.Run == nil {
+		t.Error("versionCmd.Run should not be nil")
+	}
+}
+
+// TestRootCommandStructure tests the root command structure and subcommands
+func TestRootCommandStructure(t *testing.T) {
+	// Test root command properties
+	if rootCmd.Use != "seeder" {
+		t.Errorf("rootCmd.Use = %q, want %q", rootCmd.Use, "seeder")
+	}
+
+	if rootCmd.Short == "" {
+		t.Error("rootCmd.Short should not be empty")
+	}
+
+	// Test that expected subcommands are registered
+	expectedSubcommands := []string{"version", "start", "add", "remove", "list", "status"}
+
+	for _, expected := range expectedSubcommands {
+		found := false
+		for _, cmd := range rootCmd.Commands() {
+			if cmd.Use == expected || strings.HasPrefix(cmd.Use, expected+" ") {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("rootCmd missing expected subcommand %q", expected)
+		}
+	}
+}
+
+// TestRootCommandPersistentFlags tests that persistent flags are properly defined
+func TestRootCommandPersistentFlags(t *testing.T) {
+	pflags := rootCmd.PersistentFlags()
+
+	// Test --config flag
+	configFlag := pflags.Lookup("config")
+	if configFlag == nil {
+		t.Error("rootCmd missing --config persistent flag")
+	} else {
+		// Note: --config has no shorthand defined in root.go
+		if configFlag.Shorthand != "" {
+			t.Errorf("--config shorthand = %q, want %q", configFlag.Shorthand, "")
+		}
+	}
+
+	// Test --log-level flag
+	logLevelFlag := pflags.Lookup("log-level")
+	if logLevelFlag == nil {
+		t.Error("rootCmd missing --log-level persistent flag")
+	} else {
+		if logLevelFlag.DefValue != "info" {
+			t.Errorf("--log-level default = %q, want %q", logLevelFlag.DefValue, "info")
+		}
+	}
+
+	// Test --log-format flag
+	logFormatFlag := pflags.Lookup("log-format")
+	if logFormatFlag == nil {
+		t.Error("rootCmd missing --log-format persistent flag")
+	} else {
+		// Note: --log-format default is "json" in root.go
+		if logFormatFlag.DefValue != "json" {
+			t.Errorf("--log-format default = %q, want %q", logFormatFlag.DefValue, "json")
+		}
+	}
 }

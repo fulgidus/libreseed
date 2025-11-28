@@ -768,3 +768,11 @@ func (e *Engine) VerifyTorrent(ctx context.Context, infoHash string) error {
 	t.VerifyData()
 	return nil
 }
+
+// Client returns the underlying torrent client.
+// This is useful for advanced operations like accessing the DHT server.
+func (e *Engine) Client() *torrent.Client {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	return e.client
+}

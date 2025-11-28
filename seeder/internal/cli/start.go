@@ -8,6 +8,7 @@ import (
 	"syscall"
 	"time"
 
+	anacrolixtorrent "github.com/anacrolix/torrent"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
@@ -119,34 +120,51 @@ func runStart(cmd *cobra.Command, args []string) error {
 	// Initialize DHT manager if enabled
 	var dhtManager *dht.Manager
 	if cfg.DHT.Enabled {
-		logger.Info("Initializing DHT manager",
-			zap.Int("port", cfg.Network.Port),
-			zap.Strings("bootstrap_peers", cfg.DHT.BootstrapPeers),
-		)
+		logger.Info("Initializing DHT manager (using torrent engine's DHT)")
 
-		// Create DHT configuration
-		dhtCfg := dht.ManagerConfig{
-			BootstrapNodes: cfg.DHT.BootstrapPeers,
-			Port:           cfg.Network.Port,
-			Logger:         newZapLoggerAdapter(logger),
-		}
-
-		// Create DHT manager
-		var err error
-		dhtManager, err = dht.NewManager(dhtCfg)
-		if err != nil {
-			logger.Error("Failed to create DHT manager", zap.Error(err))
+		// Get DHT server from torrent engine's client
+		client := engine.Client()
+		if client == nil {
+			logger.Error("Failed to get torrent client from engine")
 			logger.Warn("Continuing without DHT - peer discovery will be limited")
-			dhtManager = nil
 		} else {
-			// Start DHT
-			if err := dhtManager.Start(); err != nil {
-				// Non-fatal error - continue without DHT
-				logger.Error("Failed to start DHT manager", zap.Error(err))
+			// Get DHT servers from the client
+			dhtServers := client.DhtServers()
+			if len(dhtServers) == 0 {
+				logger.Error("No DHT servers available from torrent client")
 				logger.Warn("Continuing without DHT - peer discovery will be limited")
-				dhtManager = nil
 			} else {
-				logger.Info("DHT manager started successfully")
+				// Extract the anacrolix DHT server from the wrapper
+				wrapper, ok := dhtServers[0].(anacrolixtorrent.AnacrolixDhtServerWrapper)
+				if !ok {
+					logger.Error("DHT server is not of expected type")
+					logger.Warn("Continuing without DHT - peer discovery will be limited")
+				} else {
+					// Create DHT configuration (without Port and BootstrapNodes)
+					dhtCfg := dht.ManagerConfig{
+						DisableReannounce: false,
+						Logger:            newZapLoggerAdapter(logger),
+					}
+
+					// Create DHT manager with the existing DHT server
+					var err error
+					dhtManager, err = dht.NewManager(wrapper.Server, dhtCfg)
+					if err != nil {
+						logger.Error("Failed to create DHT manager", zap.Error(err))
+						logger.Warn("Continuing without DHT - peer discovery will be limited")
+						dhtManager = nil
+					} else {
+						// Start DHT manager (re-announce loop only)
+						if err := dhtManager.Start(); err != nil {
+							// Non-fatal error - continue without DHT
+							logger.Error("Failed to start DHT manager", zap.Error(err))
+							logger.Warn("Continuing without DHT - peer discovery will be limited")
+							dhtManager = nil
+						} else {
+							logger.Info("DHT manager started successfully (reusing torrent engine's DHT)")
+						}
+					}
+				}
 			}
 		}
 	} else {

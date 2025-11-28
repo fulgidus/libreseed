@@ -7,7 +7,6 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
-	"net"
 	"sync"
 	"time"
 
@@ -40,12 +39,6 @@ const PutTimeout = 30 * time.Second
 
 // ManagerConfig contains configuration options for the DHT Manager.
 type ManagerConfig struct {
-	// BootstrapNodes is a list of DHT bootstrap nodes (defaults to BitTorrent mainnet bootstrap nodes).
-	BootstrapNodes []string
-
-	// Port is the UDP port for DHT operations (default: 6881).
-	Port int
-
 	// DisableReannounce disables automatic re-announcement (useful for testing).
 	DisableReannounce bool
 
@@ -59,15 +52,6 @@ type Logger interface {
 	Infof(format string, args ...interface{})
 	Warnf(format string, args ...interface{})
 	Errorf(format string, args ...interface{})
-}
-
-// DefaultBootstrapNodes returns the default BitTorrent mainnet DHT bootstrap nodes.
-func DefaultBootstrapNodes() []string {
-	return []string{
-		"router.bittorrent.com:6881",
-		"dht.transmissionbt.com:6881",
-		"router.utorrent.com:6881",
-	}
 }
 
 // Manager manages DHT operations for LibreSeed protocol records.
@@ -92,20 +76,18 @@ type announceState struct {
 	nextRetry time.Time
 }
 
-// NewManager creates a new DHT Manager with the given configuration.
-func NewManager(config ManagerConfig) (*Manager, error) {
-	if config.Port == 0 {
-		config.Port = 6881
-	}
-
-	if len(config.BootstrapNodes) == 0 {
-		config.BootstrapNodes = DefaultBootstrapNodes()
+// NewManager creates a new DHT Manager that uses an existing DHT server from the torrent client.
+// This ensures there's only one DHT instance and avoids port conflicts.
+func NewManager(server *dht.Server, config ManagerConfig) (*Manager, error) {
+	if server == nil {
+		return nil, errors.New("DHT server cannot be nil")
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 
 	m := &Manager{
 		config:    config,
+		server:    server,
 		ctx:       ctx,
 		cancel:    cancel,
 		announces: make(map[Key]*announceState),
@@ -114,7 +96,8 @@ func NewManager(config ManagerConfig) (*Manager, error) {
 	return m, nil
 }
 
-// Start initializes the DHT server and begins DHT operations.
+// Start begins DHT management operations using the existing server.
+// The DHT server must already be initialized by the torrent client.
 func (m *Manager) Start() error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -127,44 +110,14 @@ func (m *Manager) Start() error {
 		return nil
 	}
 
-	// Create UDP connection for DHT
-	conn, err := net.ListenPacket("udp", fmt.Sprintf(":%d", m.config.Port))
-	if err != nil {
-		return fmt.Errorf("failed to create UDP listener: %w", err)
+	if m.server == nil {
+		return errors.New("DHT server not initialized")
 	}
 
-	// Create DHT server configuration
-	cfg := dht.ServerConfig{
-		Conn:  conn,
-		Store: bep44.NewMemory(), // Local BEP 44 storage
-		StartingNodes: func() ([]dht.Addr, error) {
-			if len(m.config.BootstrapNodes) > 0 {
-				nodes := make([]dht.Addr, 0, len(m.config.BootstrapNodes))
-				for _, node := range m.config.BootstrapNodes {
-					addr, err := net.ResolveUDPAddr("udp", node)
-					if err != nil {
-						continue
-					}
-					nodes = append(nodes, dht.NewAddr(addr))
-				}
-				return nodes, nil
-			}
-			return dht.GlobalBootstrapAddrs("udp") // Use mainline DHT bootstraps
-		},
-	}
-
-	// Create and start DHT server
-	server, err := dht.NewServer(&cfg)
-	if err != nil {
-		conn.Close()
-		return fmt.Errorf("failed to create DHT server: %w", err)
-	}
-
-	m.server = server
 	m.started = true
 
 	if m.config.Logger != nil {
-		m.config.Logger.Infof("DHT Manager started on port %d", m.config.Port)
+		m.config.Logger.Infof("DHT Manager started (using torrent client's DHT server)")
 	}
 
 	// Start re-announce loop unless disabled
@@ -177,6 +130,7 @@ func (m *Manager) Start() error {
 }
 
 // Stop gracefully shuts down the DHT manager.
+// Note: This does NOT close the DHT server itself, as it's owned by the torrent client.
 func (m *Manager) Stop() error {
 	m.mu.Lock()
 
@@ -188,9 +142,8 @@ func (m *Manager) Stop() error {
 	m.closed = true
 	m.cancel()
 
-	if m.server != nil {
-		m.server.Close()
-	}
+	// Note: We do NOT close m.server here because it's owned by the torrent client
+	// and will be closed when the client shuts down.
 
 	m.mu.Unlock()
 

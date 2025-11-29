@@ -121,21 +121,43 @@ func generateNameIndexKey(packageName string) string {
 
 ```go
 func PublishPackage(dht *dht.Server, pkg *Package, privateKey ed25519.PrivateKey) error {
-    // 1. Create and store minimal manifest
-    manifest := createMinimalManifest(pkg)
-    manifestKey := generateManifestKey(manifest)
-    err := putManifest(dht, manifestKey, manifest)
+    // 1. Compute contentHash from files
+    contentHash := computeContentHash(pkg.Files)
+    
+    // 2. Create and sign full manifest (contentHash signature)
+    fullManifest := createFullManifest(pkg, contentHash)
+    signFullManifest(fullManifest, privateKey)
+    
+    // 3. Create .tgz tarball with full manifest inside
+    tarballPath, err := createTarball(pkg, fullManifest)
     if err != nil {
         return err
     }
     
-    // 2. Update publisher announce
+    // 4. Compute infohash of tarball
+    infohash, err := computeInfohash(tarballPath)
+    if err != nil {
+        return err
+    }
+    
+    // 5. Create and sign minimal manifest (infohash signature)
+    minimalManifest := createMinimalManifest(pkg, infohash)
+    signMinimalManifest(minimalManifest, privateKey)
+    
+    // 6. Store minimal manifest in DHT
+    manifestKey := generateManifestKey(minimalManifest)
+    err = putManifest(dht, manifestKey, minimalManifest)
+    if err != nil {
+        return err
+    }
+    
+    // 7. Update publisher announce
     err = updatePublisherAnnounce(dht, pkg, privateKey)
     if err != nil {
         return err
     }
     
-    // 3. Update Name Index (NEW in v1.3)
+    // 8. Update Name Index (NEW in v1.3)
     pubkey := privateKey.Public().(ed25519.PublicKey)
     err = UpdateNameIndex(dht, pkg.Name, pubkey, pkg.Version, privateKey)
     if err != nil {
@@ -153,33 +175,53 @@ func PublishPackage(dht *dht.Server, pkg *Package, privateKey ed25519.PrivateKey
 ```go
 func InstallPackage(dht *dht.Server, name, versionRange string) error {
     // 1. Try Name Index resolution first
-    manifest, err := ResolveByName(dht, name, versionRange, PolicyFirstSeen)
+    minimalManifest, err := ResolveByName(dht, name, versionRange, PolicyFirstSeen)
     if err != nil {
         // Fallback to explicit publisher if Name Index fails
         log.Printf("Name Index resolution failed: %v", err)
         return errors.New("No publisher specified and Name Index unavailable")
     }
     
-    // 2. Download torrent
-    torrentData, err := downloadTorrent(manifest.Infohash)
+    // 2. Verify minimal manifest signature (infohash)
+    pubkey, err := base64.StdEncoding.DecodeString(minimalManifest.Pubkey)
+    if err != nil {
+        return err
+    }
+    if !verifyMinimalManifest(minimalManifest, ed25519.PublicKey(pubkey)) {
+        return errors.New("Minimal manifest signature verification failed")
+    }
+    
+    // 3. Download .tgz torrent
+    tarballPath, err := downloadTorrent(minimalManifest.Infohash)
     if err != nil {
         return err
     }
     
-    // 3. Verify signature
-    if !verifyManifest(manifest, manifest.Signature, manifest.Pubkey) {
-        return errors.New("Manifest signature verification failed")
-    }
-    
-    // 4. Install to storage
-    installPath := getInstallPath(manifest)
-    err = extractTorrent(torrentData, installPath)
+    // 4. Extract tarball and read full manifest
+    fullManifest, err := extractAndReadManifest(tarballPath)
     if err != nil {
         return err
     }
     
-    log.Printf("Installed %s@%s from publisher %s", 
-               manifest.Name, manifest.Version, manifest.Pubkey)
+    // 5. Verify full manifest signature (contentHash)
+    if !verifyFullManifest(fullManifest, ed25519.PublicKey(pubkey)) {
+        return errors.New("Full manifest signature verification failed")
+    }
+    
+    // 6. Verify all file hashes match contentHash
+    if !verifyFileHashes(fullManifest) {
+        return errors.New("File hash verification failed")
+    }
+    
+    // 7. Install to storage
+    installPath := getInstallPath(fullManifest)
+    err = installFiles(tarballPath, installPath)
+    if err != nil {
+        return err
+    }
+    
+    log.Printf("Installed %s@%s from packager %s", 
+               fullManifest.Name, fullManifest.Version, minimalManifest.Pubkey[:16])
     return nil
 }
 ```

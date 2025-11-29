@@ -173,6 +173,11 @@ func (m *Manager) AnnouncePackage(manifest *MinimalManifest) error {
 		return fmt.Errorf("invalid manifest: %w", err)
 	}
 
+	// Verify signature before storing
+	if err := manifest.VerifySignature(); err != nil {
+		return fmt.Errorf("signature verification failed: %w", err)
+	}
+
 	key := ManifestKey(manifest.Name, manifest.Version)
 
 	if err := m.putRecord(key, manifest); err != nil {
@@ -237,6 +242,11 @@ func (m *Manager) AnnouncePublisher(announce *Announce) error {
 		return fmt.Errorf("invalid publisher announce: %w", err)
 	}
 
+	// Verify signature before storing
+	if err := announce.VerifySignature(); err != nil {
+		return fmt.Errorf("signature verification failed: %w", err)
+	}
+
 	// Decode pubkey from base64 to compute the key
 	pubkeyBytes, err := decodeBase64(announce.Pubkey)
 	if err != nil {
@@ -275,6 +285,11 @@ func (m *Manager) AnnounceSeeder(status *SeederStatus) error {
 		return fmt.Errorf("invalid seeder status: %w", err)
 	}
 
+	// Verify signature before storing
+	if err := status.VerifySignature(); err != nil {
+		return fmt.Errorf("signature verification failed: %w", err)
+	}
+
 	key := SeederKey(status.SeederID)
 
 	if err := m.putRecord(key, status); err != nil {
@@ -306,6 +321,11 @@ func (m *Manager) GetManifest(name, version string) (*MinimalManifest, error) {
 
 	if err := manifest.Validate(); err != nil {
 		return nil, fmt.Errorf("invalid manifest retrieved: %w", err)
+	}
+
+	// Verify signature after retrieval
+	if err := manifest.VerifySignature(); err != nil {
+		return nil, fmt.Errorf("signature verification failed: %w", err)
 	}
 
 	return &manifest, nil
@@ -348,6 +368,11 @@ func (m *Manager) GetPublisherAnnounce(pubkey []byte) (*Announce, error) {
 		return nil, fmt.Errorf("invalid publisher announce retrieved: %w", err)
 	}
 
+	// Verify signature after retrieval
+	if err := announce.VerifySignature(); err != nil {
+		return nil, fmt.Errorf("signature verification failed: %w", err)
+	}
+
 	return &announce, nil
 }
 
@@ -366,6 +391,11 @@ func (m *Manager) GetSeederStatus(seederID string) (*SeederStatus, error) {
 
 	if err := status.Validate(); err != nil {
 		return nil, fmt.Errorf("invalid seeder status retrieved: %w", err)
+	}
+
+	// Verify signature after retrieval
+	if err := status.VerifySignature(); err != nil {
+		return nil, fmt.Errorf("signature verification failed: %w", err)
 	}
 
 	return &status, nil

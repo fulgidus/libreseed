@@ -1,0 +1,18 @@
+Using config file: seeder.yaml
+2025-11-28T22:33:20.889+0100	[34mINFO[0m	cli/start.go:88	Starting LibreSeed Seeder	{"version": "0.2.0-alpha", "data_dir": "./test-data", "port": 6881}
+2025-11-28T22:33:20.889+0100	[34mINFO[0m	cli/start.go:108	Initializing torrent engine	{"bind_address": "127.0.0.1", "port": 6881}
+2025-11-28T22:33:20.889+0100	[34mINFO[0m	torrent-engine	torrent/engine.go:308	starting torrent engine
+2025-11-28T22:33:20.889+0100	[34mINFO[0m	torrent-engine	torrent/engine.go:328	torrent engine started	{"bind_address": "127.0.0.1", "port": 6881, "dht_enabled": true}
+2025-11-28T22:33:20.889+0100	[34mINFO[0m	cli/start.go:123	Initializing DHT manager (using torrent engine's DHT)
+2025-11-28T22:33:20.889+0100	[34mINFO[0m	cli/start.go:38	DHT Manager started (using torrent client's DHT server)
+2025-11-28T22:33:20.889+0100	[34mINFO[0m	cli/start.go:164	DHT manager started successfully (reusing torrent engine's DHT)
+2025-11-28T22:33:20.889+0100	[34mINFO[0m	cli/start.go:177	Seeder service started successfully
+2025-11-28T22:33:20.889+0100	[34mINFO[0m	cli/start.go:178	Press Ctrl+C to stop
+2025-11-28T23:21:27.240+0100	[34mINFO[0m	cli/start.go:183	Received shutdown signal	{"signal": "terminated"}
+2025-11-28T23:21:27.240+0100	[34mINFO[0m	cli/start.go:189	Shutting down seeder service...
+2025-11-28T23:21:27.240+0100	[34mINFO[0m	cli/start.go:197	Stopping DHT manager...
+2025-11-28T23:21:27.240+0100	[34mINFO[0m	cli/start.go:38	DHT Manager stopped
+2025-11-28T23:21:27.240+0100	[34mINFO[0m	cli/start.go:201	DHT manager stopped successfully
+2025-11-28T23:21:27.240+0100	[34mINFO[0m	torrent-engine	torrent/engine.go:414	stopping torrent engine
+2025-11-28T23:21:27.240+0100	[34mINFO[0m	torrent-engine	torrent/engine.go:438	torrent engine stopped
+2025-11-28T23:21:27.240+0100	[34mINFO[0m	cli/start.go:212	Seeder service stopped

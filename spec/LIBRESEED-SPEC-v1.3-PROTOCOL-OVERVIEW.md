@@ -37,7 +37,7 @@ It is a **protocol-first design** that enables zero-cost, censorship-resistant p
 ### 1.3 Design Philosophy
 
 **Primary Deliverables:**
-1. `libreseed-publisher` — CLI binary for publishing packages
+1. `libreseed-packager` — CLI binary for creating and publishing packages
 2. `libreseed-seeder` — Daemon binary for maintaining network availability
 3. **Protocol specification** (this document)
 

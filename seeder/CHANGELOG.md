@@ -7,6 +7,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+#### LibreSeed Package Management (`internal/cli/`, `internal/torrent/`)
+- `seeder add-package` command - Add LibreSeed packages for seeding
+  - Validates minimal manifest (v1.3 spec) integrity and signatures
+  - `--manifest` flag for manifest JSON path
+  - `--package` flag for package .tgz path
+  - Automatic torrent creation from validated packages
+  - DHT announcement with LibreSeed-specific keys
+- `Engine.AddPackage()` method in torrent engine
+  - Creates BitTorrent metadata from package files
+  - Generates piece hashes with 256KB piece length
+  - DHT-only mode (trackerless) for decentralized discovery
+  - Returns `TorrentHandle` for seeding control
+
+#### Manifest Validation (`internal/manifest/`)
+- Complete LibreSeed v1.3 minimal manifest validation
+  - Schema version validation (requires "1.3")
+  - Infohash format validation (sha256: prefix)
+  - Package name validation (npm-compatible)
+  - Semantic version validation
+  - Ed25519 signature verification (cryptographic validation)
+  - Comprehensive test coverage (18 tests, all passing)
+
+### Technical Details
+- **Torrent Creation:** Bencode encoding with metainfo.Info structure
+- **Hash Algorithms:**
+  - LibreSeed Infohash: SHA256 of entire .tgz file
+  - BitTorrent InfoHash: SHA1 of bencoded info dict
+- **Test Coverage:**
+  - Manifest package: 95.5% coverage
+  - End-to-end package addition tested and working
+
+### Known Limitations
+- Seeding stops immediately after adding package (daemon mode needs persistence)
+- No storage of BitTorrent infohash ↔ LibreSeed manifest hash mapping yet
+- No resume seeding across restarts (state persistence needed)
+
+---
+
 ## [0.2.0-alpha] - 2025-11-28
 
 ### Added

@@ -5,10 +5,13 @@ package dht
 
 import (
 	"bytes"
+	"crypto/ed25519"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"regexp"
+	"strings"
 	"time"
 )
 
@@ -50,26 +53,29 @@ const (
 
 // Validation errors returned by Validate methods.
 var (
-	ErrEmptyProtocol        = errors.New("protocol field is empty")
-	ErrInvalidProtocol      = errors.New("invalid protocol version")
-	ErrEmptyName            = errors.New("name field is empty")
-	ErrNameTooLong          = errors.New("name exceeds maximum length")
-	ErrEmptyVersion         = errors.New("version field is empty")
-	ErrVersionTooLong       = errors.New("version exceeds maximum length")
-	ErrInvalidVersion       = errors.New("invalid version format")
-	ErrEmptyInfohash        = errors.New("infohash field is empty")
-	ErrInvalidInfohash      = errors.New("invalid infohash format")
-	ErrEmptyPubkey          = errors.New("pubkey field is empty")
-	ErrEmptySignature       = errors.New("signature field is empty")
-	ErrInvalidTimestamp     = errors.New("timestamp is invalid or zero")
-	ErrEmptyPublishers      = errors.New("publishers list is empty")
-	ErrEmptyPackages        = errors.New("packages list is empty")
-	ErrEmptyVersions        = errors.New("versions list is empty")
-	ErrEmptyManifestKey     = errors.New("manifestKey field is empty")
-	ErrEmptyLatestVersion   = errors.New("latestVersion field is empty")
-	ErrEmptyIndexVersion    = errors.New("indexVersion field is empty")
-	ErrEmptyAnnounceVersion = errors.New("announceVersion field is empty")
-	ErrEmptySeederID        = errors.New("seederID field is empty")
+	ErrEmptyProtocol               = errors.New("protocol field is empty")
+	ErrInvalidProtocol             = errors.New("invalid protocol version")
+	ErrEmptyName                   = errors.New("name field is empty")
+	ErrNameTooLong                 = errors.New("name exceeds maximum length")
+	ErrEmptyVersion                = errors.New("version field is empty")
+	ErrVersionTooLong              = errors.New("version exceeds maximum length")
+	ErrInvalidVersion              = errors.New("invalid version format")
+	ErrEmptyInfohash               = errors.New("infohash field is empty")
+	ErrInvalidInfohash             = errors.New("invalid infohash format")
+	ErrEmptyPubkey                 = errors.New("pubkey field is empty")
+	ErrInvalidPubkeyFormat         = errors.New("invalid pubkey format: must be 'ed25519:<hex>'")
+	ErrEmptySignature              = errors.New("signature field is empty")
+	ErrInvalidSignatureFormat      = errors.New("invalid signature format: must be 'ed25519:<hex>'")
+	ErrSignatureVerificationFailed = errors.New("signature verification failed")
+	ErrInvalidTimestamp            = errors.New("timestamp is invalid or zero")
+	ErrEmptyPublishers             = errors.New("publishers list is empty")
+	ErrEmptyPackages               = errors.New("packages list is empty")
+	ErrEmptyVersions               = errors.New("versions list is empty")
+	ErrEmptyManifestKey            = errors.New("manifestKey field is empty")
+	ErrEmptyLatestVersion          = errors.New("latestVersion field is empty")
+	ErrEmptyIndexVersion           = errors.New("indexVersion field is empty")
+	ErrEmptyAnnounceVersion        = errors.New("announceVersion field is empty")
+	ErrEmptySeederID               = errors.New("seederID field is empty")
 )
 
 // semverRegex validates semantic version strings (e.g., "1.4.0", "2.0.0-beta.1").
@@ -213,6 +219,35 @@ func (m *MinimalManifest) SigningData() ([]byte, error) {
 func (m *MinimalManifest) IsExpired(ttl time.Duration) bool {
 	created := time.UnixMilli(m.Timestamp)
 	return time.Since(created) > ttl
+}
+
+// VerifySignature verifies the Ed25519 signature on the manifest.
+// Returns an error if the signature is invalid or verification fails.
+func (m *MinimalManifest) VerifySignature() error {
+	// Parse pubkey
+	pubkeyBytes, err := parseEd25519Key(m.Pubkey)
+	if err != nil {
+		return fmt.Errorf("%w: %v", ErrInvalidPubkeyFormat, err)
+	}
+
+	// Parse signature
+	sigBytes, err := parseEd25519Key(m.Signature)
+	if err != nil {
+		return fmt.Errorf("%w: %v", ErrInvalidSignatureFormat, err)
+	}
+
+	// Get signing data
+	data, err := m.SigningData()
+	if err != nil {
+		return fmt.Errorf("failed to get signing data: %w", err)
+	}
+
+	// Verify signature
+	if !ed25519.Verify(ed25519.PublicKey(pubkeyBytes), data, sigBytes) {
+		return ErrSignatureVerificationFailed
+	}
+
+	return nil
 }
 
 // PublisherEntry represents a single publisher's entry in a NameIndex.
@@ -501,6 +536,35 @@ func (a *Announce) SigningData() ([]byte, error) {
 	return canonicalJSON(data)
 }
 
+// VerifySignature verifies the Ed25519 signature of the Announce using the embedded pubkey.
+// The signature is computed over the canonical JSON of all fields except the signature field.
+func (a *Announce) VerifySignature() error {
+	// Parse public key
+	pubkeyBytes, err := parseEd25519Key(a.Pubkey)
+	if err != nil {
+		return fmt.Errorf("invalid pubkey: %w", err)
+	}
+
+	// Parse signature
+	signatureBytes, err := parseEd25519Key(a.Signature)
+	if err != nil {
+		return fmt.Errorf("invalid signature: %w", err)
+	}
+
+	// Get signing data
+	signingData, err := a.SigningData()
+	if err != nil {
+		return fmt.Errorf("failed to create signing data: %w", err)
+	}
+
+	// Verify signature
+	if !ed25519.Verify(pubkeyBytes, signingData, signatureBytes) {
+		return ErrSignatureVerificationFailed
+	}
+
+	return nil
+}
+
 // IsExpired returns true if the announce timestamp is older than the given TTL.
 func (a *Announce) IsExpired(ttl time.Duration) bool {
 	updated := time.UnixMilli(a.Timestamp)
@@ -618,6 +682,35 @@ func (s *SeederStatus) SigningData() ([]byte, error) {
 	return canonicalJSON(data)
 }
 
+// VerifySignature verifies the Ed25519 signature of the SeederStatus using the embedded pubkey.
+// The signature is computed over the canonical JSON of all fields except the signature field.
+func (s *SeederStatus) VerifySignature() error {
+	// Parse public key
+	pubkeyBytes, err := parseEd25519Key(s.Pubkey)
+	if err != nil {
+		return fmt.Errorf("invalid pubkey: %w", err)
+	}
+
+	// Parse signature
+	signatureBytes, err := parseEd25519Key(s.Signature)
+	if err != nil {
+		return fmt.Errorf("invalid signature: %w", err)
+	}
+
+	// Get signing data
+	signingData, err := s.SigningData()
+	if err != nil {
+		return fmt.Errorf("failed to create signing data: %w", err)
+	}
+
+	// Verify signature
+	if !ed25519.Verify(pubkeyBytes, signingData, signatureBytes) {
+		return ErrSignatureVerificationFailed
+	}
+
+	return nil
+}
+
 // IsExpired returns true if the status timestamp is older than the given TTL.
 func (s *SeederStatus) IsExpired(ttl time.Duration) bool {
 	updated := time.UnixMilli(s.Timestamp)
@@ -641,4 +734,40 @@ func canonicalJSON(v interface{}) ([]byte, error) {
 	}
 
 	return buf.Bytes(), nil
+}
+
+// parseEd25519Key parses an Ed25519 key or signature in the format "ed25519:<hex>".
+// Returns the decoded bytes or an error if the format is invalid.
+// Accepts 32 bytes (public key) or 64 bytes (signature).
+func parseEd25519Key(s string) ([]byte, error) {
+	// Check for "ed25519:" prefix
+	const prefix = "ed25519:"
+	if !strings.HasPrefix(s, prefix) {
+		return nil, fmt.Errorf("missing 'ed25519:' prefix")
+	}
+
+	// Extract hex string after prefix
+	hexStr := strings.TrimPrefix(s, prefix)
+	if hexStr == "" {
+		return nil, fmt.Errorf("empty hex string after prefix")
+	}
+
+	// Decode hex
+	keyBytes, err := hex.DecodeString(hexStr)
+	if err != nil {
+		return nil, fmt.Errorf("invalid hex encoding: %w", err)
+	}
+
+	// Validate length: must be 32 bytes (public key) or 64 bytes (signature)
+	if len(keyBytes) != ed25519.PublicKeySize && len(keyBytes) != ed25519.SignatureSize {
+		return nil, fmt.Errorf("invalid key length: got %d bytes, expected %d (public key) or %d (signature)",
+			len(keyBytes), ed25519.PublicKeySize, ed25519.SignatureSize)
+	}
+
+	return keyBytes, nil
+}
+
+// encodeEd25519Key encodes an Ed25519 key or signature as "ed25519:<hex>".
+func encodeEd25519Key(keyBytes []byte) string {
+	return "ed25519:" + hex.EncodeToString(keyBytes)
 }

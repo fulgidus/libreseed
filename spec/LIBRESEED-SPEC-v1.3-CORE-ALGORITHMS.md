@@ -126,9 +126,9 @@ func ResolveLatest(dhtClient *dht.Server, name string, pubkey ed25519.PublicKey)
         return nil, err
     }
     
-    // 5. Verify manifest signature
-    if !verifyManifest(manifest, pubkey) {
-        return nil, errors.New("Invalid manifest signature")
+    // 5. Verify minimal manifest signature (infohash)
+    if !verifyMinimalManifest(manifest, pubkey) {
+        return nil, errors.New("Invalid minimal manifest signature")
     }
     
     return manifest, nil
@@ -178,12 +178,110 @@ func ResolveSemver(dhtClient *dht.Server, name, semverRange string, pubkey ed255
 
 ---
 
-### 10.4 DHT Re-put (Seeder Maintenance)
+### 10.4 Signature Verification (Two-Signature Model)
 
-**Re-publish manifests and Name Indices every 22 hours to maintain DHT availability:**
+#### 10.4.1 Verify Minimal Manifest (Infohash Signature)
+
+**Used when:** Retrieving manifest from DHT, before downloading torrent.
 
 ```go
-func DHTRePutLoop(dhtClient *dht.Server, manifests []*Manifest, nameIndices []*NameIndex) {
+func verifyMinimalManifest(manifest *MinimalManifest, pubkey ed25519.PublicKey) bool {
+    // Reconstruct signed data
+    data := map[string]interface{}{
+        "protocol": manifest.Protocol,
+        "version":  manifest.Version,
+        "name":     manifest.Name,
+        "version":  manifest.PackageVersion,
+        "infohash": manifest.Infohash,
+    }
+    
+    canonical, err := json.Marshal(data)
+    if err != nil {
+        return false
+    }
+    
+    signature, err := base64.StdEncoding.DecodeString(manifest.Signature)
+    if err != nil {
+        return false
+    }
+    
+    return ed25519.Verify(pubkey, canonical, signature)
+}
+```
+
+#### 10.4.2 Verify Full Manifest (ContentHash Signature)
+
+**Used when:** After extracting tarball, before trusting file contents.
+
+```go
+func verifyFullManifest(manifest *FullManifest, pubkey ed25519.PublicKey) bool {
+    // 1. Recompute contentHash from file list
+    computedHash := computeContentHash(manifest.Files)
+    
+    // 2. Verify it matches manifest's contentHash
+    if computedHash != manifest.ContentHash {
+        return false
+    }
+    
+    // 3. Reconstruct signed data
+    data := map[string]interface{}{
+        "protocol":    manifest.Protocol,
+        "version":     manifest.Version,
+        "name":        manifest.Name,
+        "version":     manifest.PackageVersion,
+        "contentHash": manifest.ContentHash,
+    }
+    
+    canonical, err := json.Marshal(data)
+    if err != nil {
+        return false
+    }
+    
+    signature, err := base64.StdEncoding.DecodeString(manifest.Signature)
+    if err != nil {
+        return false
+    }
+    
+    return ed25519.Verify(pubkey, canonical, signature)
+}
+```
+
+#### 10.4.3 Compute ContentHash (Merkle-Tree-Like)
+
+```go
+import (
+    "crypto/sha256"
+    "encoding/hex"
+    "sort"
+)
+
+func computeContentHash(files []FileEntry) string {
+    // 1. Sort files by path
+    sort.Slice(files, func(i, j int) bool {
+        return files[i].Path < files[j].Path
+    })
+    
+    // 2. Concatenate all file hashes
+    var concatenated []byte
+    for _, file := range files {
+        hashBytes, _ := hex.DecodeString(file.Hash)
+        concatenated = append(concatenated, hashBytes...)
+    }
+    
+    // 3. Hash the concatenation
+    finalHash := sha256.Sum256(concatenated)
+    return hex.EncodeToString(finalHash[:])
+}
+```
+
+---
+
+### 10.5 DHT Re-put (Seeder Maintenance)
+
+**Re-publish minimal manifests and Name Indices every 22 hours to maintain DHT availability:**
+
+```go
+func DHTRePutLoop(dhtClient *dht.Server, manifests []*MinimalManifest, nameIndices []*NameIndex) {
     ticker := time.NewTicker(22 * time.Hour)
     defer ticker.Stop()
     

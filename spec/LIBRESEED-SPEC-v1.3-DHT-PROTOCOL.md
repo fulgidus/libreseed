@@ -48,6 +48,22 @@ version = "1.4.0"
 dht_key = sha256("libreseed:manifest:mypackage@1.4.0")
 ```
 
+**Important:** Only **minimal manifests** (with infohash signatures) are stored in DHT.  
+**Full manifests** (with contentHash signatures) are embedded inside the `.tgz` tarball.
+
+**Minimal Manifest Structure (DHT):**
+```json
+{
+  "protocol": "libreseed",
+  "version": "1.3",
+  "name": "mypackage",
+  "version": "1.4.0",
+  "infohash": "abc123...",
+  "signature": "def456...",
+  "pubkey": "ghi789..."
+}
+```
+
 #### 4.2.3 Name Index Key (NEW in v1.3)
 ```
 sha256("libreseed:name-index:" + name)

@@ -1,7 +1,7 @@
 # LibreSeed Seeder
 
-**Status:** 🚧 Alpha - Foundation Phase  
-**Version:** 0.1.0-alpha
+**Status:** 🚧 Alpha - Core Functionality Working  
+**Version:** 0.3.0-alpha (Unreleased)
 
 A high-performance, decentralized BitTorrent seeder with DHT-first architecture for the LibreSeed ecosystem.
 
@@ -41,14 +41,28 @@ make build
 # Display help
 ./build/seeder --help
 
-# Run with default configuration (Phase 2 - coming soon)
-# ./build/seeder start
+# Add a LibreSeed package for seeding
+./build/seeder add-package \
+  --manifest /path/to/package@version.minimal.json \
+  --package /path/to/package@version.tgz
 
-# Run with custom config file (Phase 2 - coming soon)
-# ./build/seeder start --config /path/to/config.yaml
+# Start seeder daemon (keeps running until Ctrl+C)
+./build/seeder start
 
-# Run with specific log level (Phase 2 - coming soon)
-# ./build/seeder start --log-level debug --log-format console
+# Start with custom config file
+./build/seeder start --config /path/to/config.yaml
+
+# Start with specific log level
+./build/seeder start --log-level debug --log-format console
+
+# List all torrents being seeded
+./build/seeder list
+
+# Show detailed status of a specific torrent
+./build/seeder status <infohash>
+
+# Remove a torrent from seeding
+./build/seeder remove <infohash>
 ```
 
 ## Development
@@ -163,14 +177,54 @@ cp configs/seeder.example.yaml seeder.yaml
 
 ## Current Status
 
-**Phase 1: Foundation** ✅ In Progress
+**Phase 2: Core Implementation** ✅ Partially Complete
 
-- [x] Project structure initialization
-- [x] Go module setup
-- [x] Build system (Makefile)
-- [ ] CLI framework implementation
-- [ ] Configuration loading
-- [ ] Basic logging setup
+### Working Features ✅
+- [x] Project structure and build system
+- [x] Configuration management (YAML + env + flags)
+- [x] Logging system (Zap structured logging)
+- [x] CLI framework (Cobra)
+- [x] BitTorrent engine (anacrolix/torrent wrapper)
+- [x] LibreSeed manifest validation (v1.3 spec)
+- [x] Package addition with torrent creation
+- [x] DHT integration for peer discovery
+- [x] Basic daemon mode (start/stop with signals)
+
+### In Progress 🚧
+- [ ] Persistent seeding (packages stop when daemon exits)
+- [ ] State persistence (resume seeding across restarts)
+- [ ] BitTorrent ↔ LibreSeed infohash mapping storage
+- [ ] Multi-package simultaneous seeding
+
+### Planned 📋
+- [ ] File watching for auto-add
+- [ ] Metrics and monitoring endpoints
+- [ ] Health check API
+- [ ] Web dashboard
+
+## Quick Example Workflow
+
+```bash
+# 1. Build the seeder
+cd seeder && make build
+
+# 2. Add a package (validates and creates torrent)
+./build/seeder add-package \
+  --manifest ../test-package/hello-world@1.0.0.minimal.json \
+  --package ../test-package/hello-world@1.0.0.tgz
+
+# Output:
+# ✅ Manifest validation successful
+# ✅ Torrent created: 1238 bytes, 1 pieces
+# ✅ Package added and announced to DHT
+# InfoHash: 2fa139d3314ef4e4a2c07cce72d88e0961cd9c4e
+
+# 3. List seeded packages
+./build/seeder list
+
+# 4. Start daemon for continuous seeding
+./build/seeder start --log-level info --log-format console
+```
 
 See [SEEDER_ROADMAP.md](../docs/architecture/SEEDER_ROADMAP.md) for full development plan.
 

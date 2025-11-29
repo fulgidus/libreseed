@@ -6,7 +6,53 @@ LibreSeed is a protocol and toolset for distributing software packages over a pe
 
 ## 🚀 Quick Start
 
-### For Users
+### For Publishers
+
+Create and sign packages using the Packager tool:
+
+```bash
+# Navigate to packager directory
+cd packager
+
+# Generate a keypair (one-time setup)
+make build
+./build/packager keygen --output publisher.key
+
+# Package your project
+./build/packager create \
+  --source /path/to/your/project \
+  --name mypackage \
+  --version 1.0.0 \
+  --key publisher.key \
+  --output ./packages
+
+# Output:
+# - mypackage@1.0.0.tgz (signed tarball)
+# - mypackage@1.0.0.minimal.json (DHT announcement)
+```
+
+### For Seeder Operators
+
+Run a seeder to distribute packages:
+
+```bash
+# Navigate to seeder directory
+cd seeder
+
+# Build the seeder
+make build
+
+# Add a package to seed
+./build/seeder add /path/to/mypackage@1.0.0.tgz
+
+# Start seeding
+./build/seeder start
+
+# Check status
+./build/seeder status
+```
+
+### For Users (Future)
 
 ```bash
 # Install LibreSeed CLI
@@ -15,32 +61,6 @@ curl -sSL https://get.libreseed.com | sh
 # Install a package via gateway
 cd your-project
 npm install  # Automatically uses LibreSeed for configured packages
-```
-
-### For Publishers
-
-```bash
-# Generate keypair
-libreseed keygen --output publisher-key.pem
-
-# Publish a package
-libreseed publish \
-  --name mypackage \
-  --version 1.0.0 \
-  --key publisher-key.pem \
-  --tarball mypackage-1.0.0.tgz
-```
-
-### For Seeder Operators
-
-```bash
-# Run a seeder
-docker run -d \
-  --name libreseed-seeder \
-  -v /var/lib/libreseed:/var/lib/libreseed \
-  -p 6881:6881/udp \
-  -p 8080:8080 \
-  libreseed/seeder:latest
 ```
 
 ## 🎯 Key Features

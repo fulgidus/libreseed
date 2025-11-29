@@ -14,25 +14,27 @@
 
 ```bash
 # 1. Generate keypair (first time only)
-libreseed-publisher keygen
+libreseed-packager keygen
 
 # 2. Create package
 cd mypackage/
-libreseed-publisher init
+libreseed-packager init
 
 # 3. Build package
 npm run build  # or your build process
 
 # 4. Publish to LibreSeed
-libreseed-publisher publish \
+libreseed-packager publish \
     --name mypackage \
     --version 1.4.0 \
     --dist ./dist \
-    --key ~/.libreseed/keys/publisher.key
+    --key ~/.libreseed/keys/packager.key
 
 # Output:
-# ✓ Manifest created and signed
-# ✓ Torrent created: mypackage-1.4.0.torrent
+# ✓ ContentHash computed from files
+# ✓ Full manifest created and signed (contentHash signature)
+# ✓ Tarball created: mypackage-1.4.0.tgz (includes full manifest)
+# ✓ Minimal manifest created and signed (infohash signature)
 # ✓ Published to DHT: sha256(libreseed:manifest:mypackage@1.4.0)
 # ✓ Updated announce: sha256(libreseed:announce:<pubkey>)
 # ✓ Updated Name Index: sha256(libreseed:name-index:mypackage)  [NEW]
@@ -81,11 +83,11 @@ libreseed-cli install mypackage@^1.4.0
 # ✓ Verified signature
 # ✓ Installed to ~/.libreseed/packages/abc123.../
 
-# Alternative: Explicit publisher (backwards compatible)
+# Alternative: Explicit packager (backwards compatible)
 libreseed-cli install \
     --name mypackage \
     --version "^1.4.0" \
-    --publisher "ABC123..."
+    --packager "ABC123..."
 ```
 
 ---

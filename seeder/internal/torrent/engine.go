@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/anacrolix/torrent"
+	"github.com/anacrolix/torrent/bencode"
 	"github.com/anacrolix/torrent/metainfo"
 	"github.com/anacrolix/torrent/storage"
 	"github.com/fulgidus/libreseed/seeder/internal/config"
@@ -603,6 +604,104 @@ func (e *Engine) AddTorrentFromInfoHash(ctx context.Context, infoHashHex string)
 
 	e.logger.Info("added torrent from info hash",
 		zap.String("info_hash", infoHashHex),
+	)
+
+	return handle, nil
+}
+
+// AddPackage creates a torrent from a package file and adds it to the engine.
+// This is the primary method for adding LibreSeed packages (.tgz files) after
+// manifest validation has been completed.
+//
+// The method:
+// 1. Creates a MetaInfo structure from the package file
+// 2. Generates piece hashes for the torrent
+// 3. Adds the torrent to the engine
+//
+// For LibreSeed, we don't use trackers (DHT-only), so no announce URLs are set.
+func (e *Engine) AddPackage(ctx context.Context, packagePath string) (*TorrentHandle, error) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	if e.state != EngineStateRunning {
+		return nil, ErrEngineNotStarted
+	}
+
+	// Check max torrents limit
+	if e.config.Limits.MaxActiveTorrents > 0 && len(e.torrents) >= e.config.Limits.MaxActiveTorrents {
+		return nil, ErrMaxTorrentsReached
+	}
+
+	// Validate package file exists
+	fileInfo, err := os.Stat(packagePath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to stat package file: %w", err)
+	}
+
+	if fileInfo.IsDir() {
+		return nil, fmt.Errorf("package path is a directory, expected file")
+	}
+
+	// Create Info structure
+	info := metainfo.Info{
+		Name:        fileInfo.Name(),
+		PieceLength: 256 * 1024, // 256KB piece length (standard for packages)
+		Length:      fileInfo.Size(),
+	}
+
+	// Build torrent info from package file
+	// This will read the file and generate piece hashes
+	err = info.BuildFromFilePath(packagePath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to build torrent info: %w", err)
+	}
+
+	// Create MetaInfo structure
+	mi := metainfo.MetaInfo{
+		CreationDate: time.Now().Unix(),
+		CreatedBy:    "LibreSeed Seeder",
+		Comment:      "LibreSeed Package Distribution",
+	}
+
+	// Set info bytes (this will bencode the info dict)
+	mi.InfoBytes, err = bencode.Marshal(info)
+	if err != nil {
+		return nil, fmt.Errorf("failed to encode info dict: %w", err)
+	}
+
+	// For LibreSeed, we use DHT-only mode, no trackers
+	// The Nodes field can be left empty as the DHT manager handles bootstrap
+
+	// Get info hash (BitTorrent SHA1-based info hash)
+	infoHash := mi.HashInfoBytes().HexString()
+
+	// Check if already exists
+	if _, exists := e.torrents[infoHash]; exists {
+		return nil, ErrTorrentExists
+	}
+
+	// Add torrent to client
+	t, err := e.client.AddTorrent(&mi)
+	if err != nil {
+		return nil, fmt.Errorf("failed to add torrent: %w", err)
+	}
+
+	// Create handle
+	handle := &TorrentHandle{
+		InfoHash: infoHash,
+		Name:     info.Name,
+		AddedAt:  time.Now(),
+		torrent:  t,
+	}
+
+	e.torrents[infoHash] = handle
+
+	e.logger.Info("added package as torrent",
+		zap.String("info_hash", infoHash),
+		zap.String("name", info.Name),
+		zap.String("package", packagePath),
+		zap.Int64("size", fileInfo.Size()),
+		zap.Int64("piece_length", info.PieceLength),
 	)
 
 	return handle, nil

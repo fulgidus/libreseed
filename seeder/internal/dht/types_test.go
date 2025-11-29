@@ -1,6 +1,8 @@
 package dht
 
 import (
+	"crypto/ed25519"
+	"encoding/hex"
 	"encoding/json"
 	"testing"
 	"time"
@@ -1082,4 +1084,447 @@ func stringContains(s, substr string) bool {
 		}
 	}
 	return false
+}
+
+// TestParseEd25519Key tests the parseEd25519Key helper function.
+func TestParseEd25519Key(t *testing.T) {
+	// Generate a real Ed25519 public key for testing
+	pubKey, _, err := ed25519.GenerateKey(nil)
+	if err != nil {
+		t.Fatalf("Failed to generate test key: %v", err)
+	}
+	validKeyHex := hex.EncodeToString(pubKey)
+	validKeyString := "ed25519:" + validKeyHex
+
+	tests := []struct {
+		name    string
+		keyStr  string
+		wantErr bool
+	}{
+		{
+			name:    "valid ed25519 key",
+			keyStr:  validKeyString,
+			wantErr: false,
+		},
+		{
+			name:    "missing prefix",
+			keyStr:  validKeyHex,
+			wantErr: true,
+		},
+		{
+			name:    "wrong prefix",
+			keyStr:  "rsa:" + validKeyHex,
+			wantErr: true,
+		},
+		{
+			name:    "invalid hex encoding",
+			keyStr:  "ed25519:ZZZZZZ",
+			wantErr: true,
+		},
+		{
+			name:    "wrong key length",
+			keyStr:  "ed25519:abcd",
+			wantErr: true,
+		},
+		{
+			name:    "empty string",
+			keyStr:  "",
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			key, err := parseEd25519Key(tt.keyStr)
+			if tt.wantErr {
+				if err == nil {
+					t.Errorf("parseEd25519Key() expected error, got nil")
+				}
+			} else {
+				if err != nil {
+					t.Errorf("parseEd25519Key() unexpected error = %v", err)
+				}
+				if len(key) != ed25519.PublicKeySize {
+					t.Errorf("parseEd25519Key() returned key with wrong length: got %d, want %d", len(key), ed25519.PublicKeySize)
+				}
+			}
+		})
+	}
+}
+
+// TestEncodeEd25519Key tests the encodeEd25519Key helper function.
+func TestEncodeEd25519Key(t *testing.T) {
+	pubKey, _, err := ed25519.GenerateKey(nil)
+	if err != nil {
+		t.Fatalf("Failed to generate test key: %v", err)
+	}
+
+	encoded := encodeEd25519Key(pubKey)
+
+	// Check format
+	if len(encoded) < 10 || encoded[:8] != "ed25519:" {
+		t.Errorf("encodeEd25519Key() = %q, want prefix 'ed25519:'", encoded)
+	}
+
+	// Check round-trip
+	decoded, err := parseEd25519Key(encoded)
+	if err != nil {
+		t.Errorf("Round-trip failed: %v", err)
+	}
+	if !ed25519.PublicKey(decoded).Equal(pubKey) {
+		t.Errorf("Round-trip produced different key")
+	}
+}
+
+// TestMinimalManifest_VerifySignature tests signature verification for MinimalManifest.
+func TestMinimalManifest_VerifySignature(t *testing.T) {
+	// Generate a test Ed25519 key pair
+	pubKey, privKey, err := ed25519.GenerateKey(nil)
+	if err != nil {
+		t.Fatalf("Failed to generate key pair: %v", err)
+	}
+
+	// Create a valid manifest
+	manifest := MinimalManifest{
+		Protocol:  ProtocolVersion,
+		Name:      "test-package",
+		Version:   "1.0.0",
+		Infohash:  "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+		Pubkey:    encodeEd25519Key(pubKey),
+		Timestamp: time.Now().UnixMilli(),
+	}
+
+	// Sign the manifest
+	signingData, err := manifest.SigningData()
+	if err != nil {
+		t.Fatalf("Failed to get signing data: %v", err)
+	}
+	signature := ed25519.Sign(privKey, signingData)
+	manifest.Signature = encodeEd25519Key(signature)
+
+	tests := []struct {
+		name     string
+		manifest MinimalManifest
+		wantErr  bool
+	}{
+		{
+			name:     "valid signature",
+			manifest: manifest,
+			wantErr:  false,
+		},
+		{
+			name: "invalid signature",
+			manifest: func() MinimalManifest {
+				m := manifest
+				// Create a wrong signature
+				wrongSig := make([]byte, ed25519.SignatureSize)
+				copy(wrongSig, signature)
+				wrongSig[0] ^= 0xFF // Flip bits to make it invalid
+				m.Signature = encodeEd25519Key(wrongSig)
+				return m
+			}(),
+			wantErr: true,
+		},
+		{
+			name: "wrong public key",
+			manifest: func() MinimalManifest {
+				m := manifest
+				// Generate a different key pair
+				wrongPubKey, _, _ := ed25519.GenerateKey(nil)
+				m.Pubkey = encodeEd25519Key(wrongPubKey)
+				return m
+			}(),
+			wantErr: true,
+		},
+		{
+			name: "malformed pubkey format",
+			manifest: func() MinimalManifest {
+				m := manifest
+				m.Pubkey = "invalid:format"
+				return m
+			}(),
+			wantErr: true,
+		},
+		{
+			name: "malformed signature format",
+			manifest: func() MinimalManifest {
+				m := manifest
+				m.Signature = "invalid:format"
+				return m
+			}(),
+			wantErr: true,
+		},
+		{
+			name: "tampered data",
+			manifest: func() MinimalManifest {
+				m := manifest
+				m.Name = "tampered-name" // Change data after signing
+				return m
+			}(),
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.manifest.VerifySignature()
+			if tt.wantErr {
+				if err == nil {
+					t.Errorf("VerifySignature() expected error, got nil")
+				}
+			} else {
+				if err != nil {
+					t.Errorf("VerifySignature() unexpected error = %v", err)
+				}
+			}
+		})
+	}
+}
+
+// TestAnnounce_VerifySignature tests signature verification for Announce.
+func TestAnnounce_VerifySignature(t *testing.T) {
+	// Generate a test Ed25519 key pair
+	pubKey, privKey, err := ed25519.GenerateKey(nil)
+	if err != nil {
+		t.Fatalf("Failed to generate key pair: %v", err)
+	}
+
+	// Create a valid announce
+	announce := Announce{
+		Protocol:        ProtocolVersion,
+		AnnounceVersion: AnnounceFormatVersion,
+		Pubkey:          encodeEd25519Key(pubKey),
+		Packages: []AnnouncePackage{
+			{
+				Name:          "test-package",
+				LatestVersion: "1.0.0",
+				Versions: []AnnounceVersion{
+					{Version: "1.0.0", ManifestKey: "key1", Timestamp: time.Now().UnixMilli()},
+				},
+			},
+		},
+		Timestamp: time.Now().UnixMilli(),
+	}
+
+	// Sign the announce
+	signingData, err := announce.SigningData()
+	if err != nil {
+		t.Fatalf("Failed to get signing data: %v", err)
+	}
+	signature := ed25519.Sign(privKey, signingData)
+	announce.Signature = encodeEd25519Key(signature)
+
+	// Helper to create a deep copy of announce (avoid slice mutation issues)
+	copyAnnounce := func() Announce {
+		packages := make([]AnnouncePackage, len(announce.Packages))
+		for i, pkg := range announce.Packages {
+			versions := make([]AnnounceVersion, len(pkg.Versions))
+			copy(versions, pkg.Versions)
+			packages[i] = AnnouncePackage{
+				Name:          pkg.Name,
+				LatestVersion: pkg.LatestVersion,
+				Versions:      versions,
+			}
+		}
+		return Announce{
+			Protocol:        announce.Protocol,
+			AnnounceVersion: announce.AnnounceVersion,
+			Pubkey:          announce.Pubkey,
+			Packages:        packages,
+			Timestamp:       announce.Timestamp,
+			Signature:       announce.Signature,
+		}
+	}
+
+	tests := []struct {
+		name     string
+		announce Announce
+		wantErr  bool
+	}{
+		{
+			name:     "valid signature",
+			announce: copyAnnounce(),
+			wantErr:  false,
+		},
+		{
+			name: "invalid signature",
+			announce: func() Announce {
+				a := copyAnnounce()
+				wrongSig := make([]byte, ed25519.SignatureSize)
+				copy(wrongSig, signature)
+				wrongSig[0] ^= 0xFF
+				a.Signature = encodeEd25519Key(wrongSig)
+				return a
+			}(),
+			wantErr: true,
+		},
+		{
+			name: "wrong public key",
+			announce: func() Announce {
+				a := copyAnnounce()
+				wrongPubKey, _, _ := ed25519.GenerateKey(nil)
+				a.Pubkey = encodeEd25519Key(wrongPubKey)
+				return a
+			}(),
+			wantErr: true,
+		},
+		{
+			name: "malformed pubkey format",
+			announce: func() Announce {
+				a := copyAnnounce()
+				a.Pubkey = "not-ed25519:abcd"
+				return a
+			}(),
+			wantErr: true,
+		},
+		{
+			name: "malformed signature format",
+			announce: func() Announce {
+				a := copyAnnounce()
+				a.Signature = "bad-format"
+				return a
+			}(),
+			wantErr: true,
+		},
+		{
+			name: "tampered packages",
+			announce: func() Announce {
+				a := copyAnnounce()
+				a.Packages[0].Name = "tampered"
+				return a
+			}(),
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.announce.VerifySignature()
+			if tt.wantErr {
+				if err == nil {
+					t.Errorf("VerifySignature() expected error, got nil")
+				}
+			} else {
+				if err != nil {
+					t.Errorf("VerifySignature() unexpected error = %v", err)
+				}
+			}
+		})
+	}
+}
+
+// TestSeederStatus_VerifySignature tests signature verification for SeederStatus.
+func TestSeederStatus_VerifySignature(t *testing.T) {
+	// Generate a test Ed25519 key pair
+	pubKey, privKey, err := ed25519.GenerateKey(nil)
+	if err != nil {
+		t.Fatalf("Failed to generate key pair: %v", err)
+	}
+
+	// Create a valid seeder status
+	status := SeederStatus{
+		Protocol:  ProtocolVersion,
+		SeederID:  "seeder123",
+		Pubkey:    encodeEd25519Key(pubKey),
+		Timestamp: time.Now().UnixMilli(),
+		BandwidthStats: BandwidthStats{
+			TotalUploadBytes:    1000,
+			TotalDownloadBytes:  500,
+			CurrentUploadRate:   100,
+			CurrentDownloadRate: 50,
+		},
+	}
+
+	// Sign the status
+	signingData, err := status.SigningData()
+	if err != nil {
+		t.Fatalf("Failed to get signing data: %v", err)
+	}
+	signature := ed25519.Sign(privKey, signingData)
+	status.Signature = encodeEd25519Key(signature)
+
+	tests := []struct {
+		name    string
+		status  SeederStatus
+		wantErr bool
+	}{
+		{
+			name:    "valid signature",
+			status:  status,
+			wantErr: false,
+		},
+		{
+			name: "invalid signature",
+			status: func() SeederStatus {
+				s := status
+				wrongSig := make([]byte, ed25519.SignatureSize)
+				copy(wrongSig, signature)
+				wrongSig[0] ^= 0xFF
+				s.Signature = encodeEd25519Key(wrongSig)
+				return s
+			}(),
+			wantErr: true,
+		},
+		{
+			name: "wrong public key",
+			status: func() SeederStatus {
+				s := status
+				wrongPubKey, _, _ := ed25519.GenerateKey(nil)
+				s.Pubkey = encodeEd25519Key(wrongPubKey)
+				return s
+			}(),
+			wantErr: true,
+		},
+		{
+			name: "malformed pubkey format",
+			status: func() SeederStatus {
+				s := status
+				s.Pubkey = "malformed"
+				return s
+			}(),
+			wantErr: true,
+		},
+		{
+			name: "malformed signature format",
+			status: func() SeederStatus {
+				s := status
+				s.Signature = "malformed"
+				return s
+			}(),
+			wantErr: true,
+		},
+		{
+			name: "tampered seederID",
+			status: func() SeederStatus {
+				s := status
+				s.SeederID = "tampered-id"
+				return s
+			}(),
+			wantErr: true,
+		},
+		{
+			name: "tampered bandwidth stats",
+			status: func() SeederStatus {
+				s := status
+				s.BandwidthStats.TotalUploadBytes = 9999
+				return s
+			}(),
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.status.VerifySignature()
+			if tt.wantErr {
+				if err == nil {
+					t.Errorf("VerifySignature() expected error, got nil")
+				}
+			} else {
+				if err != nil {
+					t.Errorf("VerifySignature() unexpected error = %v", err)
+				}
+			}
+		})
+	}
 }

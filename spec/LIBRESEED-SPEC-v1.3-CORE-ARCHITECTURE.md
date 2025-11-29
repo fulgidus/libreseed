@@ -16,15 +16,16 @@
 
 ```
 ┌─────────────────┐
-│   Publisher     │  Go binary
+│   Packager      │  Go binary
 │   CLI Tool      │  Creates + announces packages
 └────────┬────────┘
          │
-         │ 1. Create .torrent
-         │ 2. Create minimal manifest
-         │ 3. Announce to DHT (Ed25519 signed)
-         │ 4. Update Name Index
-         │ 5. Seed torrent
+         │ 1. Sign file contents (contentHash)
+         │ 2. Create .tgz with full manifest inside
+         │ 3. Sign infohash (minimal manifest)
+         │ 4. Announce to DHT (Ed25519 signed)
+         │ 5. Update Name Index
+         │ 6. Seed torrent
          ▼
 ┌─────────────────────────────────────────────────┐
 │         DHT Network (Pure P2P)                  │
@@ -58,25 +59,39 @@
 
 **Publication Flow:**
 ```
-Publisher → Creates minimal manifest (500B)
-         → Creates full manifest.json
-         → Creates .torrent file
-         → Announces to DHT with Ed25519 signature
+Packager → Computes contentHash from file list
+         → Signs contentHash (signature covers file contents)
+         → Creates full manifest.json with contentHash signature
+         → Creates .tgz tarball (manifest.json inside)
+         → Computes infohash of tarball
+         → Signs infohash (minimal manifest for DHT)
+         → Announces minimal manifest to DHT with Ed25519 signature
          → Updates Name Index with multi-sig (NEW)
          → Seeds torrent
 ```
+
+**Two-Signature Model:**
+- **Full Manifest (inside .tgz):** Signs `contentHash` (file contents) — can be inside tarball
+- **Minimal Manifest (in DHT):** Signs `infohash` (tarball hash) — computed after tarball creation
 
 **Discovery Flow (Pure P2P):**
 ```
 User/Seeder → Queries DHT for package name
             → Retrieves Name Index (multi-publisher)
             → Selects publisher based on policy
-            → Retrieves minimal manifest + infohash
-            → Downloads torrent (contains full manifest)
-            → Verifies Ed25519 signature
+            → Retrieves minimal manifest from DHT
+            → Verifies minimal manifest signature (infohash)
+            → Downloads .tgz torrent via BitTorrent
+            → Extracts tarball and reads full manifest
+            → Verifies full manifest signature (contentHash)
+            → Validates file hashes match contentHash
             → Installs to ~/.libreseed/packages/
             → (Optional) Creates symlink
 ```
+
+**Dual Verification:**
+1. **Minimal Manifest:** Verifies infohash signature (protects tarball integrity)
+2. **Full Manifest:** Verifies contentHash signature (protects file contents)
 
 **No HTTP, No DNS, No Centralization.**
 

@@ -59,6 +59,7 @@ type LimitsConfig struct {
 type ManifestConfig struct {
 	Source          string        `mapstructure:"source"`
 	RefreshInterval time.Duration `mapstructure:"refresh_interval"`
+	WatchDir        string        `mapstructure:"watch_dir"`
 }
 
 // LogConfig contains logging settings
@@ -100,6 +101,7 @@ func DefaultConfig() *Config {
 		Manifest: ManifestConfig{
 			Source:          "",
 			RefreshInterval: 1 * time.Hour,
+			WatchDir:        "./packages",
 		},
 		Log: LogConfig{
 			Level:  "info",
@@ -174,6 +176,7 @@ func LoadConfig() (*Config, error) {
 	// Manifest
 	viper.SetDefault("manifest.source", defaults.Manifest.Source)
 	viper.SetDefault("manifest.refresh_interval", defaults.Manifest.RefreshInterval)
+	viper.SetDefault("manifest.watch_dir", defaults.Manifest.WatchDir)
 
 	// Log
 	viper.SetDefault("log.level", defaults.Log.Level)

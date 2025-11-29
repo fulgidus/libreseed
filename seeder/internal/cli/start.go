@@ -16,6 +16,7 @@ import (
 	"github.com/fulgidus/libreseed/seeder/internal/config"
 	"github.com/fulgidus/libreseed/seeder/internal/dht"
 	"github.com/fulgidus/libreseed/seeder/internal/torrent"
+	"github.com/fulgidus/libreseed/seeder/internal/watcher"
 )
 
 // zapLoggerAdapter adapts zap.Logger to the dht.Logger interface.
@@ -171,6 +172,29 @@ func runStart(cmd *cobra.Command, args []string) error {
 		logger.Info("DHT disabled in configuration")
 	}
 
+	// Initialize file watcher if watch directory is configured
+	var fileWatcher *watcher.Watcher
+	if cfg.Manifest.WatchDir != "" {
+		logger.Info("Initializing file watcher",
+			zap.String("watch_dir", cfg.Manifest.WatchDir))
+
+		var err error
+		fileWatcher, err = watcher.NewWatcher(cfg, logger, engine)
+		if err != nil {
+			logger.Error("Failed to create file watcher", zap.Error(err))
+			logger.Warn("Continuing without file watcher")
+		} else {
+			if err := fileWatcher.Start(ctx); err != nil {
+				logger.Error("Failed to start file watcher", zap.Error(err))
+				logger.Warn("Continuing without file watcher")
+			} else {
+				logger.Info("File watcher started successfully")
+			}
+		}
+	} else {
+		logger.Info("File watcher disabled (no watch directory configured)")
+	}
+
 	// TODO Week 3-4: Load manifests
 	// TODO Week 6: Start metrics server
 
@@ -191,6 +215,16 @@ func runStart(cmd *cobra.Command, args []string) error {
 	// Create shutdown context with timeout
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer shutdownCancel()
+
+	// Stop file watcher if running
+	if fileWatcher != nil {
+		logger.Info("Stopping file watcher...")
+		if err := fileWatcher.Stop(); err != nil {
+			logger.Error("Error stopping file watcher", zap.Error(err))
+		} else {
+			logger.Info("File watcher stopped successfully")
+		}
+	}
 
 	// Stop DHT manager if running
 	if dhtManager != nil {

@@ -5,7 +5,7 @@ import (
 	"os"
 )
 
-var version = "dev" // Set via ldflags during build
+var version = "v0.3.0" // Set via ldflags during build
 
 // getAPIAddr returns the daemon API address from env var or default
 func getAPIAddr() string {
@@ -53,6 +53,21 @@ func main() {
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 			os.Exit(1)
 		}
+	case "add":
+		if err := addCommand(args); err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			os.Exit(1)
+		}
+	case "list":
+		if err := listCommand(args); err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			os.Exit(1)
+		}
+	case "remove":
+		if err := removeCommand(args); err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			os.Exit(1)
+		}
 	case "help", "-h", "--help":
 		printUsage()
 	case "version", "--version", "-v":
@@ -68,13 +83,16 @@ func printUsage() {
 	fmt.Println("lbs - LibreSeed CLI")
 	fmt.Println()
 	fmt.Println("Usage:")
-	fmt.Println("  lbs start [--config PATH]  Start the daemon")
-	fmt.Println("  lbs stop                   Stop the running daemon")
-	fmt.Println("  lbs status                 Show daemon status")
-	fmt.Println("  lbs restart                Restart the daemon")
-	fmt.Println("  lbs stats                  Show daemon statistics")
-	fmt.Println("  lbs version                Show version information")
-	fmt.Println("  lbs help                   Show this help message")
+	fmt.Println("  lbs start [--config PATH]                        Start the daemon")
+	fmt.Println("  lbs stop                                         Stop the running daemon")
+	fmt.Println("  lbs status                                       Show daemon status")
+	fmt.Println("  lbs restart                                      Restart the daemon")
+	fmt.Println("  lbs stats                                        Show daemon statistics")
+	fmt.Println("  lbs add <file> <name> <version> [description]    Add a package to the daemon")
+	fmt.Println("  lbs list                                         List all packages")
+	fmt.Println("  lbs remove <package_id>                          Remove a package from the daemon")
+	fmt.Println("  lbs version                                      Show version information")
+	fmt.Println("  lbs help                                         Show this help message")
 	fmt.Println()
 	fmt.Println("Options:")
 	fmt.Println("  --config PATH    Path to configuration file (default: ~/.libreseed/config.yaml)")

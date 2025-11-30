@@ -3,6 +3,7 @@ package dht
 
 import (
 	"context"
+	"log"
 	"sync"
 	"time"
 
@@ -44,6 +45,7 @@ func NewAnnouncer(client *Client, interval time.Duration) *Announcer {
 
 // Start begins the announcement worker
 func (a *Announcer) Start() {
+	log.Printf("=== ANNOUNCER START CALLED ===")
 	a.wg.Add(1)
 	go a.worker()
 }
@@ -108,17 +110,21 @@ func (a *Announcer) GetPackage(infoHash metainfo.Hash) (*PackageAnnouncement, bo
 func (a *Announcer) worker() {
 	defer a.wg.Done()
 
+	log.Printf("=== ANNOUNCER WORKER STARTED, interval=%v ===", a.interval)
 	ticker := time.NewTicker(a.interval)
 	defer ticker.Stop()
 
 	// Announce immediately on startup
+	log.Printf("=== ANNOUNCER: Initial announceAll() call ===")
 	a.announceAll()
 
 	for {
 		select {
 		case <-a.ctx.Done():
+			log.Printf("=== ANNOUNCER WORKER STOPPED ===")
 			return
 		case <-ticker.C:
+			log.Printf("=== ANNOUNCER: Periodic announceAll() triggered ===")
 			a.announceAll()
 		}
 	}
@@ -133,14 +139,18 @@ func (a *Announcer) announceAll() {
 	}
 	a.mu.RUnlock()
 
+	log.Printf("=== announceAll: Found %d packages to announce ===", len(packages))
+
 	// Announce each package (without holding the lock)
 	for _, pkg := range packages {
+		log.Printf("=== Announcing package: %s (InfoHash: %s) ===", pkg.PackageName, pkg.InfoHash.HexString())
 		a.announcePackage(pkg.InfoHash)
 	}
 }
 
 // announcePackage announces a single package to the DHT
 func (a *Announcer) announcePackage(infoHash metainfo.Hash) {
+	log.Printf("=== Calling client.Announce for InfoHash: %s ===", infoHash.HexString())
 	err := a.client.Announce(infoHash, 6881) // Default BitTorrent port
 
 	a.mu.Lock()
@@ -148,6 +158,7 @@ func (a *Announcer) announcePackage(infoHash metainfo.Hash) {
 
 	pkg, exists := a.packages[infoHash]
 	if !exists {
+		log.Printf("=== ERROR: Package not found in map after announce! ===")
 		return
 	}
 
@@ -155,9 +166,11 @@ func (a *Announcer) announcePackage(infoHash metainfo.Hash) {
 	pkg.AnnounceCount++
 
 	if err != nil {
+		log.Printf("=== Announce FAILED: %v ===", err)
 		pkg.Failed = true
 		pkg.LastError = err
 	} else {
+		log.Printf("=== Announce SUCCESS: %s (count=%d, time=%s) ===", pkg.PackageName, pkg.AnnounceCount, pkg.LastAnnounced)
 		pkg.Failed = false
 		pkg.LastError = nil
 	}

@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
+	"strings"
 	"time"
 )
 
@@ -13,11 +15,14 @@ type DaemonConfig struct {
 	// ListenAddr is the HTTP server address (default: "127.0.0.1:8080")
 	ListenAddr string `yaml:"listen_addr"`
 
-	// StorageDir is where packages are stored (default: ~/.libreseed/storage)
+	// StorageDir is where packages are stored (default: ~/.local/share/libreseed/storage)
 	StorageDir string `yaml:"storage_dir"`
 
 	// DHTPort is the UDP port for DHT operations (default: 6881)
 	DHTPort int `yaml:"dht_port"`
+
+	// DHTBootstrapNodes is the list of DHT bootstrap nodes
+	DHTBootstrapNodes []string `yaml:"dht_bootstrap_nodes"`
 
 	// MaxUploadRate is the maximum upload rate in bytes/sec (0 = unlimited)
 	MaxUploadRate int64 `yaml:"max_upload_rate"`
@@ -49,9 +54,14 @@ func DefaultConfig() *DaemonConfig {
 	}
 
 	return &DaemonConfig{
-		ListenAddr:       "127.0.0.1:8080",
-		StorageDir:       filepath.Join(homeDir, ".libreseed", "storage"),
-		DHTPort:          6881,
+		ListenAddr: "127.0.0.1:8080",
+		StorageDir: filepath.Join(homeDir, ".local", "share", "libreseed", "storage"),
+		DHTPort:    6881,
+		DHTBootstrapNodes: []string{
+			"router.bittorrent.com:6881",
+			"dht.transmissionbt.com:2710",
+			"router.utorrent.com:6881",
+		},
 		MaxUploadRate:    0, // unlimited
 		MaxDownloadRate:  0, // unlimited
 		MaxConnections:   100,
@@ -60,6 +70,103 @@ func DefaultConfig() *DaemonConfig {
 		AnnounceInterval: 30 * time.Minute,
 		LogLevel:         "info",
 	}
+}
+
+// LoadFromEnv applies environment variable overrides to the configuration.
+// This follows the 12-factor app methodology where environment variables
+// take precedence over file-based configuration.
+//
+// Supported environment variables:
+//   - LIBRESEED_LISTEN_ADDR: HTTP server address
+//   - LIBRESEED_STORAGE_DIR: Storage directory path
+//   - LIBRESEED_DHT_PORT: DHT UDP port
+//   - LIBRESEED_DHT_BOOTSTRAP_NODES: Comma-separated list of bootstrap nodes
+//   - LIBRESEED_MAX_UPLOAD_RATE: Maximum upload rate in bytes/sec
+//   - LIBRESEED_MAX_DOWNLOAD_RATE: Maximum download rate in bytes/sec
+//   - LIBRESEED_MAX_CONNECTIONS: Maximum peer connections
+//   - LIBRESEED_ENABLE_DHT: Enable DHT (true/false)
+//   - LIBRESEED_ENABLE_PEX: Enable PEX (true/false)
+//   - LIBRESEED_ANNOUNCE_INTERVAL: Announce interval (e.g., "30m", "1h")
+//   - LIBRESEED_LOG_LEVEL: Log level (debug/info/warn/error)
+func (c *DaemonConfig) LoadFromEnv() error {
+	if val := os.Getenv("LIBRESEED_LISTEN_ADDR"); val != "" {
+		c.ListenAddr = val
+	}
+
+	if val := os.Getenv("LIBRESEED_STORAGE_DIR"); val != "" {
+		c.StorageDir = val
+	}
+
+	if val := os.Getenv("LIBRESEED_DHT_PORT"); val != "" {
+		port, err := strconv.Atoi(val)
+		if err != nil {
+			return fmt.Errorf("invalid LIBRESEED_DHT_PORT: %w", err)
+		}
+		c.DHTPort = port
+	}
+
+	if val := os.Getenv("LIBRESEED_DHT_BOOTSTRAP_NODES"); val != "" {
+		nodes := strings.Split(val, ",")
+		// Trim whitespace from each node
+		for i := range nodes {
+			nodes[i] = strings.TrimSpace(nodes[i])
+		}
+		c.DHTBootstrapNodes = nodes
+	}
+
+	if val := os.Getenv("LIBRESEED_MAX_UPLOAD_RATE"); val != "" {
+		rate, err := strconv.ParseInt(val, 10, 64)
+		if err != nil {
+			return fmt.Errorf("invalid LIBRESEED_MAX_UPLOAD_RATE: %w", err)
+		}
+		c.MaxUploadRate = rate
+	}
+
+	if val := os.Getenv("LIBRESEED_MAX_DOWNLOAD_RATE"); val != "" {
+		rate, err := strconv.ParseInt(val, 10, 64)
+		if err != nil {
+			return fmt.Errorf("invalid LIBRESEED_MAX_DOWNLOAD_RATE: %w", err)
+		}
+		c.MaxDownloadRate = rate
+	}
+
+	if val := os.Getenv("LIBRESEED_MAX_CONNECTIONS"); val != "" {
+		conns, err := strconv.Atoi(val)
+		if err != nil {
+			return fmt.Errorf("invalid LIBRESEED_MAX_CONNECTIONS: %w", err)
+		}
+		c.MaxConnections = conns
+	}
+
+	if val := os.Getenv("LIBRESEED_ENABLE_DHT"); val != "" {
+		enabled, err := strconv.ParseBool(val)
+		if err != nil {
+			return fmt.Errorf("invalid LIBRESEED_ENABLE_DHT: %w", err)
+		}
+		c.EnableDHT = enabled
+	}
+
+	if val := os.Getenv("LIBRESEED_ENABLE_PEX"); val != "" {
+		enabled, err := strconv.ParseBool(val)
+		if err != nil {
+			return fmt.Errorf("invalid LIBRESEED_ENABLE_PEX: %w", err)
+		}
+		c.EnablePEX = enabled
+	}
+
+	if val := os.Getenv("LIBRESEED_ANNOUNCE_INTERVAL"); val != "" {
+		interval, err := time.ParseDuration(val)
+		if err != nil {
+			return fmt.Errorf("invalid LIBRESEED_ANNOUNCE_INTERVAL: %w", err)
+		}
+		c.AnnounceInterval = interval
+	}
+
+	if val := os.Getenv("LIBRESEED_LOG_LEVEL"); val != "" {
+		c.LogLevel = strings.ToLower(val)
+	}
+
+	return nil
 }
 
 // Validate checks if the configuration is valid and returns an error if not.
@@ -74,6 +181,10 @@ func (c *DaemonConfig) Validate() error {
 
 	if c.DHTPort < 1024 || c.DHTPort > 65535 {
 		return fmt.Errorf("dht_port must be between 1024 and 65535")
+	}
+
+	if c.EnableDHT && len(c.DHTBootstrapNodes) == 0 {
+		return fmt.Errorf("dht_bootstrap_nodes cannot be empty when DHT is enabled")
 	}
 
 	if c.MaxUploadRate < 0 {

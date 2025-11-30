@@ -5,6 +5,47 @@ Tutte le modifiche rilevanti al progetto LibreSeed saranno documentate in questo
 Il formato è basato su [Keep a Changelog](https://keepachangelog.com/it/1.0.0/),
 e questo progetto aderisce al [Semantic Versioning](https://semver.org/lang/it/).
 
+## [Non rilasciato]
+
+### Aggiunto
+- Sistema di configurazione con supporto variabili d'ambiente (`LoadFromEnv()`)
+  - Supporto per 10+ variabili di configurazione (`LIBRESEED_*`)
+  - Campo `DHTBootstrapNodes` per nodi DHT pubblici predefiniti
+  - Validazione migliorata per configurazione DHT
+  - Percorsi predefiniti conformi a XDG Base Directory Specification
+- Implementazione completa daemon `lbsd` con integrazione DHT
+  - Server HTTP per API di gestione
+  - Integrazione con BitTorrent DHT per scoperta peer
+  - Gestione stato daemon e statistiche runtime
+  - Supporto per seeding e annunci DHT
+- Comandi CLI `lbs` per controllo daemon
+  - `lbs start` - Avvio daemon in background
+  - `lbs stop` - Arresto graceful del daemon
+  - `lbs status` - Verifica stato daemon
+  - `lbs stats` - Statistiche runtime del daemon
+  - `lbs restart` - Riavvio completo del daemon
+
+### Corretto
+- **Bug #5**: Comandi client (`lbs status`, `lbs stats`) riportavano erroneamente "STOPPED" con daemon attivo
+  - Formato PID file migliorato a `PID:ADDRESS` per scoperta corretta dell'indirizzo
+  - Corretta race condition scrivendo PID file prima dell'avvio server HTTP
+  - Aggiunta funzione `getDaemonAddr()` per scoperta affidabile dell'indirizzo
+  - Mantenuta retrocompatibilità con vecchio formato PID file
+  - File modificati: `cmd/lbsd/main.go`, `cmd/lbs/start.go`, `cmd/lbs/status.go`, `cmd/lbs/stats.go`
+
+### Modificato
+- Specifica 002 (CLI rename & install) aggiornata con apprendimenti della sessione
+  - Aggiunti requisiti di installazione transazionale (FR-026/027/028)
+  - Aggiunti requisiti di gestione errori (FR-037-040)
+  - Espanso criterio di successo per rilevamento avvio e rollback (SC-011/012)
+  - Aggiunta sezione strategia di testing completa
+  - Documentati apprendimenti di processo e razionale decisioni
+
+### Note Tecniche
+- Formato PID file: `PID:ADDRESS\n` (es. `2974845:127.0.0.1:9091\n`)
+- Priorità scoperta indirizzo: PID file → env var `LIBRESEED_LISTEN_ADDR` → default `localhost:8080`
+- Daemon forking: processo figlio gestito tramite `exec.Command` con detach completo
+
 ## [0.1.0] - 2025-11-29
 
 ### Aggiunto

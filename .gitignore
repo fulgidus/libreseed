@@ -44,6 +44,12 @@ vendor/
 # Application specific
 /configs/*.yaml
 !/configs/*.example.yaml
+*.test.yaml
+config.test.yaml
+
+# Compiled binaries (root level)
+/lbs
+/lbsd
 
 .opencode/
 .specify/

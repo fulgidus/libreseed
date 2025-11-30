@@ -11,19 +11,21 @@ permissions:
   contents: write
 
 jobs:
-  auto-tag:
-    name: Auto Tag on VERSION Change
+  check-and-prepare:
+    name: Check VERSION and Prepare Release
     runs-on: ubuntu-latest
+    outputs:
+      should_release: ${{ steps.version-check.outputs.changed == 'true' && steps.tag-check.outputs.exists == 'false' }}
+      version: ${{ steps.read-version.outputs.version }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 2  # Need at least 2 commits to detect changes
+          fetch-depth: 2
 
       - name: Check if VERSION file changed
         id: version-check
         run: |
-          # Check if VERSION file was modified in the last commit
           if git diff --name-only HEAD^ HEAD | grep -q '^VERSION$'; then
             echo "VERSION file changed"
             echo "changed=true" >> $GITHUB_OUTPUT
@@ -64,15 +66,184 @@ jobs:
           # Create annotated tag
           git tag -a "v$VERSION" -m "Release v$VERSION"
           
-          # Push tag to trigger release workflow
+          # Push tag
           git push origin "v$VERSION"
           
           echo "✅ Created and pushed tag v$VERSION"
-          echo "🚀 Release workflow will now be triggered automatically"
+          echo "🚀 Starting release build process..."
 
       - name: Tag already exists
         if: steps.version-check.outputs.changed == 'true' && steps.tag-check.outputs.exists == 'true'
         run: |
           echo "⚠️ Tag v${{ steps.read-version.outputs.version }} already exists"
           echo "No action taken. To create a new release, update VERSION to a new value."
-          exit 0
+
+  build:
+    name: Build Release Binaries
+    needs: check-and-prepare
+    if: needs.check-and-prepare.outputs.should_release == 'true'
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          # Linux
+          - os: ubuntu-latest
+            goos: linux
+            goarch: amd64
+            artifact_name: lbs-linux-amd64
+          - os: ubuntu-latest
+            goos: linux
+            goarch: arm64
+            artifact_name: lbs-linux-arm64
+          
+          # macOS
+          - os: macos-latest
+            goos: darwin
+            goarch: amd64
+            artifact_name: lbs-darwin-amd64
+          - os: macos-latest
+            goos: darwin
+            goarch: arm64
+            artifact_name: lbs-darwin-arm64
+          
+          # Windows
+          - os: windows-latest
+            goos: windows
+            goarch: amd64
+            artifact_name: lbs-windows-amd64.exe
+          - os: windows-latest
+            goos: windows
+            goarch: arm64
+            artifact_name: lbs-windows-arm64.exe
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: v${{ needs.check-and-prepare.outputs.version }}
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+
+      - name: Build binary
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: 0
+        run: |
+          go build -ldflags="-s -w -X main.version=v${{ needs.check-and-prepare.outputs.version }}" -o ${{ matrix.artifact_name }} ./cmd/lbs
+
+      - name: Generate checksum
+        shell: bash
+        run: |
+          sha256sum ${{ matrix.artifact_name }} > ${{ matrix.artifact_name }}.sha256
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact_name }}
+          path: |
+            ${{ matrix.artifact_name }}
+            ${{ matrix.artifact_name }}.sha256
+
+  release:
+    name: Create GitHub Release
+    needs: [check-and-prepare, build]
+    if: needs.check-and-prepare.outputs.should_release == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: v${{ needs.check-and-prepare.outputs.version }}
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Consolidate artifacts and create SHA256SUMS
+        run: |
+          mkdir -p release
+          find artifacts -type f -exec mv {} release/ \;
+          
+          # Create consolidated SHA256SUMS file
+          cd release
+          cat *.sha256 > SHA256SUMS
+          echo "📦 Release artifacts:"
+          ls -lh
+          echo ""
+          echo "🔐 SHA256SUMS:"
+          cat SHA256SUMS
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ needs.check-and-prepare.outputs.version }}
+          name: libreseed v${{ needs.check-and-prepare.outputs.version }}
+          files: release/*
+          draft: false
+          prerelease: ${{ contains(needs.check-and-prepare.outputs.version, '-') }}
+          generate_release_notes: true
+          body: |
+            ## Installation
+
+            ### Binary Installation (Recommended)
+            
+            **Linux/macOS:**
+            ```bash
+            # User install (~/.local/bin)
+            curl -fsSL https://raw.githubusercontent.com/${{ github.repository }}/main/scripts/install.sh | bash
+            
+            # System install (/usr/local/bin)
+            curl -fsSL https://raw.githubusercontent.com/${{ github.repository }}/main/scripts/install.sh | bash -s -- --system
+            ```
+
+            **Windows (PowerShell):**
+            ```powershell
+            # Coming soon - manual installation instructions below
+            ```
+
+            ### Manual Installation
+
+            1. Download the appropriate binary for your platform from the assets below
+            2. Verify the checksum using the consolidated `SHA256SUMS` file:
+               ```bash
+               sha256sum -c SHA256SUMS --ignore-missing
+               ```
+            3. Make the binary executable (Linux/macOS):
+               ```bash
+               chmod +x <binary>
+               ```
+            4. Move to a directory in your PATH:
+               ```bash
+               sudo mv <binary> /usr/local/bin/lbs
+               ```
+
+            ### Build from Source
+
+            See [README.md](https://github.com/${{ github.repository }}#installation) for build-from-source instructions.
+
+            ## Platform Support
+
+            | Platform | Architecture | Binary |
+            |----------|-------------|---------|
+            | Linux | x86_64 | `lbs-linux-amd64` |
+            | Linux | ARM64 | `lbs-linux-arm64` |
+            | macOS | x86_64 | `lbs-darwin-amd64` |
+            | macOS | ARM64 | `lbs-darwin-arm64` |
+            | Windows | x86_64 | `lbs-windows-amd64.exe` |
+            | Windows | ARM64 | `lbs-windows-arm64.exe` |
+
+            ## Verification
+
+            All binaries include SHA256 checksums. Use the consolidated `SHA256SUMS` file:
+            ```bash
+            # Verify all downloaded binaries
+            sha256sum -c SHA256SUMS --ignore-missing
+            
+            # Or verify individual binary
+            sha256sum -c <binary>.sha256
+            ```

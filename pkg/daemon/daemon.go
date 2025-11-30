@@ -2,13 +2,18 @@ package daemon
 
 import (
 	"context"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net"
 	"net/http"
+	"path/filepath"
 	"sync"
 	"time"
 
+	"github.com/anacrolix/torrent/metainfo"
+	"github.com/libreseed/libreseed/pkg/crypto"
 	"github.com/libreseed/libreseed/pkg/dht"
 	"github.com/libreseed/libreseed/pkg/storage"
 )
@@ -27,6 +32,10 @@ type Daemon struct {
 	announcer   *dht.Announcer
 	discovery   *dht.Discovery
 	peerManager *dht.PeerManager
+
+	// Package management components
+	keyManager     *crypto.KeyManager
+	packageManager *PackageManager
 
 	// Channels for lifecycle management
 	stopCh    chan struct{}
@@ -56,6 +65,29 @@ func New(config *DaemonConfig) (*Daemon, error) {
 		stopCh:    make(chan struct{}),
 		stoppedCh: make(chan struct{}),
 	}
+
+	// Initialize package management components
+	baseDir := filepath.Dir(config.StorageDir)
+	keysDir := filepath.Join(baseDir, "keys")
+	packagesDir := filepath.Join(baseDir, "packages")
+	metaFile := filepath.Join(baseDir, "packages.yaml")
+
+	// Initialize KeyManager
+	keyManager, err := crypto.NewKeyManager(keysDir)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create key manager: %w", err)
+	}
+	if err := keyManager.EnsureKeysExist(); err != nil {
+		return nil, fmt.Errorf("failed to ensure keys exist: %w", err)
+	}
+	d.keyManager = keyManager
+
+	// Initialize PackageManager
+	packageManager := NewPackageManager(packagesDir, metaFile)
+	if err := packageManager.LoadState(); err != nil {
+		return nil, fmt.Errorf("failed to load package state: %w", err)
+	}
+	d.packageManager = packageManager
 
 	// Initialize DHT components
 	dhtConfig := &dht.ClientConfig{
@@ -117,6 +149,30 @@ func (d *Daemon) Start() error {
 
 		// Start announcer
 		d.announcer.Start()
+
+		// Populate announcer with existing packages from database
+		log.Println("=== Populating announcer with existing packages ===")
+		existingPackages := d.packageManager.ListPackages()
+		log.Printf("Found %d packages in database to sync to announcer", len(existingPackages))
+		for _, pkg := range existingPackages {
+			log.Printf("Adding package to announcer: %s (%s)", pkg.Name, pkg.PackageID)
+
+			// Convert package ID (hex string) to InfoHash
+			infoHashBytes, err := hex.DecodeString(pkg.PackageID)
+			if err != nil {
+				log.Printf("Warning: Failed to decode package ID %s: %v", pkg.PackageID, err)
+				continue
+			}
+			if len(infoHashBytes) < 20 {
+				log.Printf("Warning: Package ID %s too short (need 20 bytes, got %d)", pkg.PackageID, len(infoHashBytes))
+				continue
+			}
+
+			var infoHash metainfo.Hash
+			copy(infoHash[:], infoHashBytes[:20])
+			d.announcer.AddPackage(infoHash, pkg.Name)
+		}
+		log.Println("=== Announcer population complete ===")
 	}
 
 	// Start HTTP server in background
@@ -237,6 +293,11 @@ func (d *Daemon) registerRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/status", d.handleStatus)
 	mux.HandleFunc("/stats", d.handleStats)
 	mux.HandleFunc("/shutdown", d.handleShutdown)
+
+	// Package management endpoints
+	mux.HandleFunc("POST /packages/add", d.handlePackageAdd)
+	mux.HandleFunc("GET /packages/list", d.handlePackageList)
+	mux.HandleFunc("DELETE /packages/remove", d.handlePackageRemove)
 
 	// DHT-specific endpoints (only if DHT is enabled)
 	if d.config.EnableDHT {

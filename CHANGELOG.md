@@ -7,6 +7,48 @@ e questo progetto aderisce al [Semantic Versioning](https://semver.org/lang/it/)
 
 ## [Non rilasciato]
 
+## [0.3.0] - 2025-11-30
+
+### Aggiunto
+- Sistema completo di gestione pacchetti con firma crittografica
+  - `pkg/crypto/keymanager.go` - Gestione ciclo di vita chiavi Ed25519 con fingerprinting
+  - `pkg/daemon/package_manager.go` - Archiviazione metadata pacchetti con persistenza YAML
+  - Integrazione KeyManager e PackageManager in daemon
+- API HTTP per gestione pacchetti
+  - `POST /packages/add` - Upload pacchetto con multipart form
+  - `GET /packages/list` - Lista tutti i pacchetti
+  - `DELETE /packages/remove` - Rimozione pacchetto per ID
+- Comandi CLI per gestione pacchetti
+  - `lbs add <file> <name> <version> [description]` - Aggiunge pacchetto al daemon
+  - `lbs list` - Lista tutti i pacchetti con formato tabulare e dettagli
+
+### Corretto
+- **Bug critico DHT announcement persistence**:
+  - Pacchetti non venivano ri-annunciati al DHT dopo restart del daemon
+  - Aggiunta sincronizzazione PackageManager → Announcer al startup in `pkg/daemon/daemon.go` (linee 152-175)
+  - Conversione corretta da PackageID (hex string) a `metainfo.Hash` (20-byte array)
+  - Logging dettagliato del processo di sync per debugging
+  - Test suite completo aggiunto in `pkg/daemon/daemon_test.go` (505 linee, 6 test + benchmark)
+  - Verificato end-to-end: pacchetti esistenti ora persistono announcements al DHT dopo restart
+- **Bug critici routing API (Go 1.22+ compatibility)**:
+  - Registrazione route HTTP aggiornata con sintassi method-aware (`"POST /path"` invece di `"/path"`)
+  - Fix validazione dimensione file in `handlePackageAdd` (usato `header.Size` invece di `0`)
+  - JSON struct tags in `cmd/lbs/list.go` aggiornati da snake_case a PascalCase per matching con API response
+  - File modificati: `pkg/daemon/daemon.go` (linee 271-273), `pkg/daemon/handlers.go` (linea 93), `cmd/lbs/list.go` (linee 16-27)
+- 8 errori di compilazione in `pkg/daemon/handlers.go`:
+  - Parametri `w` e `r` invertiti in handler functions
+  - Tipo `io.ReaderCloser` vs `io.Reader` in `addPackageHandler`
+  - Type mismatch per `fingerprint` (string vs []byte)
+  - Conversioni parametri URL e validazione richieste
+
+### Modificato
+- Versione CLI bumped da "dev" a "v0.3.0"
+- Help message aggiornato con nuovi comandi `add` e `list`
+
+### Note Tecniche
+- Go 1.22+ ha modificato il comportamento di `http.ServeMux`: richiesta sintassi esplicita HTTP method nelle route
+- Formato JSON response API usa PascalCase per field names (convenzione Go struct export)
+
 ## [0.2.0] - 2025-11-30
 
 ### Aggiunto

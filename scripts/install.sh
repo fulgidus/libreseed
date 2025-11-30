@@ -5,7 +5,7 @@
 set -e
 
 # Configuration
-REPO="libreseed/libreseed"
+REPO="fulgidus/libreseed"
 BINARY_NAME="lbs"
 DEFAULT_INSTALL_DIR="$HOME/.local/bin"
 SYSTEM_INSTALL_DIR="/usr/local/bin"

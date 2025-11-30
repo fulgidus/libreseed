@@ -5,6 +5,79 @@ Tutte le modifiche rilevanti al progetto LibreSeed saranno documentate in questo
 Il formato è basato su [Keep a Changelog](https://keepachangelog.com/it/1.0.0/),
 e questo progetto aderisce al [Semantic Versioning](https://semver.org/lang/it/).
 
+## [Non rilasciato]
+
+## [0.2.0] - 2025-11-30
+
+### Aggiunto
+- Sistema di configurazione con supporto variabili d'ambiente (`LoadFromEnv()`)
+  - Supporto per 10+ variabili di configurazione (`LIBRESEED_*`)
+  - Campo `DHTBootstrapNodes` per nodi DHT pubblici predefiniti
+  - Validazione migliorata per configurazione DHT
+  - Percorsi predefiniti conformi a XDG Base Directory Specification
+- Implementazione completa daemon `lbsd` con integrazione DHT
+  - Server HTTP per API di gestione
+  - Integrazione con BitTorrent DHT per scoperta peer
+  - Gestione stato daemon e statistiche runtime
+  - Supporto per seeding e annunci DHT
+- Comandi CLI `lbs` per controllo daemon
+  - `lbs start` - Avvio daemon in background
+  - `lbs stop` - Arresto graceful del daemon
+  - `lbs status` - Verifica stato daemon
+  - `lbs stats` - Statistiche runtime del daemon
+  - `lbs restart` - Riavvio completo del daemon
+
+### Corretto
+- **Bug #5**: Comandi client (`lbs status`, `lbs stats`) riportavano erroneamente "STOPPED" con daemon attivo
+  - Formato PID file migliorato a `PID:ADDRESS` per scoperta corretta dell'indirizzo
+  - Corretta race condition scrivendo PID file prima dell'avvio server HTTP
+  - Aggiunta funzione `getDaemonAddr()` per scoperta affidabile dell'indirizzo
+  - Mantenuta retrocompatibilità con vecchio formato PID file
+  - File modificati: `cmd/lbsd/main.go`, `cmd/lbs/start.go`, `cmd/lbs/status.go`, `cmd/lbs/stats.go`
+
+### Modificato
+- Specifica 002 (CLI rename & install) aggiornata con apprendimenti della sessione
+  - Aggiunti requisiti di installazione transazionale (FR-026/027/028)
+  - Aggiunti requisiti di gestione errori (FR-037-040)
+  - Espanso criterio di successo per rilevamento avvio e rollback (SC-011/012)
+  - Aggiunta sezione strategia di testing completa
+  - Documentati apprendimenti di processo e razionale decisioni
+
+### Automazione
+- **Makefile** completo con 20+ target per build, test, install
+  - Build multipiattaforma con rilevamento automatico OS/architettura
+  - Generazione e verifica checksum SHA-256
+  - Target per linting, formatting, pulizia
+  - Supporto per installazione system-wide e locale
+- **Script di installazione** (`install.sh`) production-ready
+  - Installazione transazionale con rollback automatico su fallimento
+  - Backup automatico di binari esistenti prima dell'aggiornamento
+  - Verifica prerequisiti (versione Go, Make, sha256sum)
+  - Rilevamento piattaforma e validazione ambiente
+  - Capacità di disinstallazione (`--uninstall`)
+  - Gestione permessi e creazione directory di sistema
+- **Script di test DHT** (`test-dht.sh`) per verifica integrazione
+
+### Documentazione
+- **DHT_INTEGRATION_COMPLETE.md**: Log completo sessione integrazione DHT
+  - Documentate tutte le 8 fix di compilazione API DHT
+  - Fix di validazione configurazione documentati
+  - Risultati di verifica runtime inclusi
+  - Decisioni tecniche e apprendimenti registrati
+- **PROGRESS.md**: Tracciamento sviluppo per Fasi 1-3
+  - Riassunti completamento fase
+  - Metriche di sviluppo
+  - Roadmap future features
+- **manual-test-commands.md**: Guida riferimento test manuali
+  - Procedure di test e troubleshooting
+  - Comandi di verifica e diagnostica
+
+### Note Tecniche
+- Formato PID file: `PID:ADDRESS\n` (es. `2974845:127.0.0.1:9091\n`)
+- Priorità scoperta indirizzo: PID file → env var `LIBRESEED_LISTEN_ADDR` → default `localhost:8080`
+- Daemon forking: processo figlio gestito tramite `exec.Command` con detach completo
+- Build system richiede Go 1.21+, GNU Make, sha256sum
+
 ## [0.1.0] - 2025-11-29
 
 ### Aggiunto
@@ -32,4 +105,5 @@ e questo progetto aderisce al [Semantic Versioning](https://semver.org/lang/it/)
 - Formato stringa: `algorithm:fingerprint` (es. `ed25519:a1b2c3d4e5f67890`)
 - Nessuna dipendenza esterna per le operazioni crittografiche core
 
+[0.2.0]: https://github.com/libreseed/libreseed/releases/tag/v0.2.0
 [0.1.0]: https://github.com/libreseed/libreseed/releases/tag/v0.1.0

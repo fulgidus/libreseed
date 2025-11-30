@@ -32,14 +32,19 @@ help:
 	@echo "LibreSeed Build System"
 	@echo ""
 	@echo "Usage:"
-	@echo "  make build        Build binaries (lbs, lbsd)"
-	@echo "  make clean        Remove build artifacts"
-	@echo "  make test         Run test suite"
-	@echo "  make lint         Run golangci-lint"
-	@echo "  make checksums    Generate SHA256SUMS for binaries"
-	@echo "  make install      Install binaries to $(INSTALL_DIR)"
-	@echo "  make uninstall    Remove installed binaries"
-	@echo "  make version      Show version information"
+	@echo "  make build          Build binaries (lbs, lbsd)"
+	@echo "  make build-all      Build for all platforms (Linux, macOS, Windows)"
+	@echo "  make build-linux    Build for Linux (amd64)"
+	@echo "  make build-darwin   Build for macOS (amd64 + arm64)"
+	@echo "  make build-windows  Build for Windows (amd64)"
+	@echo "  make clean          Remove build artifacts"
+	@echo "  make test           Run test suite"
+	@echo "  make lint           Run golangci-lint"
+	@echo "  make checksums      Generate SHA256SUMS for binaries"
+	@echo "  make checksums-all  Generate SHA256SUMS for all platforms"
+	@echo "  make install        Install binaries to $(INSTALL_DIR)"
+	@echo "  make uninstall      Remove installed binaries"
+	@echo "  make version        Show version information"
 	@echo ""
 	@echo "Variables:"
 	@echo "  VERSION=$(VERSION)"
@@ -153,6 +158,47 @@ version:
 	@echo "LibreSeed version $(VERSION)"
 	@echo "Go version: $(shell $(GO) version)"
 	@echo "Platform: $(GOOS)/$(GOARCH)"
+
+# Cross-platform build targets
+.PHONY: build-all
+build-all: build-linux build-darwin build-windows
+	@echo "✓ All platform builds complete"
+
+.PHONY: build-linux
+build-linux:
+	@echo "Building for Linux (amd64)..."
+	@mkdir -p $(BIN_DIR)/linux-amd64
+	@GOOS=linux GOARCH=amd64 $(GO) build $(LDFLAGS) -o $(BIN_DIR)/linux-amd64/$(CLI_BINARY) ./$(CMD_DIR)/lbs
+	@GOOS=linux GOARCH=amd64 $(GO) build $(LDFLAGS) -o $(BIN_DIR)/linux-amd64/$(DAEMON_BINARY) ./$(CMD_DIR)/lbsd
+	@echo "✓ Linux builds: $(BIN_DIR)/linux-amd64/"
+
+.PHONY: build-darwin
+build-darwin:
+	@echo "Building for macOS (amd64 + arm64)..."
+	@mkdir -p $(BIN_DIR)/darwin-amd64 $(BIN_DIR)/darwin-arm64
+	@GOOS=darwin GOARCH=amd64 $(GO) build $(LDFLAGS) -o $(BIN_DIR)/darwin-amd64/$(CLI_BINARY) ./$(CMD_DIR)/lbs
+	@GOOS=darwin GOARCH=amd64 $(GO) build $(LDFLAGS) -o $(BIN_DIR)/darwin-amd64/$(DAEMON_BINARY) ./$(CMD_DIR)/lbsd
+	@GOOS=darwin GOARCH=arm64 $(GO) build $(LDFLAGS) -o $(BIN_DIR)/darwin-arm64/$(CLI_BINARY) ./$(CMD_DIR)/lbs
+	@GOOS=darwin GOARCH=arm64 $(GO) build $(LDFLAGS) -o $(BIN_DIR)/darwin-arm64/$(DAEMON_BINARY) ./$(CMD_DIR)/lbsd
+	@echo "✓ macOS builds: $(BIN_DIR)/darwin-*/"
+
+.PHONY: build-windows
+build-windows:
+	@echo "Building for Windows (amd64)..."
+	@mkdir -p $(BIN_DIR)/windows-amd64
+	@GOOS=windows GOARCH=amd64 $(GO) build $(LDFLAGS) -o $(BIN_DIR)/windows-amd64/$(CLI_BINARY).exe ./$(CMD_DIR)/lbs
+	@GOOS=windows GOARCH=amd64 $(GO) build $(LDFLAGS) -o $(BIN_DIR)/windows-amd64/$(DAEMON_BINARY).exe ./$(CMD_DIR)/lbsd
+	@echo "✓ Windows builds: $(BIN_DIR)/windows-amd64/"
+
+# Generate checksums for all platforms
+.PHONY: checksums-all
+checksums-all: build-all
+	@echo "Generating SHA256SUMS for all platforms..."
+	@cd $(BIN_DIR)/linux-amd64 && sha256sum * > SHA256SUMS
+	@cd $(BIN_DIR)/darwin-amd64 && sha256sum * > SHA256SUMS
+	@cd $(BIN_DIR)/darwin-arm64 && sha256sum * > SHA256SUMS
+	@cd $(BIN_DIR)/windows-amd64 && sha256sum * > SHA256SUMS
+	@echo "✓ Checksums generated for all platforms"
 
 # Development targets
 .PHONY: dev

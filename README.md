@@ -299,6 +299,46 @@ libreseed/
   - `docs:` for documentation
   - `chore:` for maintenance tasks
 
+### Release Process
+
+LibreSeed uses an **automated release workflow** triggered by VERSION file changes:
+
+1. **Update VERSION file** in your feature branch:
+   ```bash
+   echo "0.3.0" > VERSION
+   git add VERSION
+   git commit -m "chore: bump version to 0.3.0"
+   ```
+
+2. **Create Pull Request** and get it reviewed/approved
+
+3. **Merge to main** — This automatically triggers:
+   - ✅ Auto-tagging workflow detects VERSION change
+   - ✅ Creates git tag `v0.3.0`
+   - ✅ Pushes tag to GitHub
+   - ✅ Release workflow builds binaries for all platforms
+   - ✅ Creates GitHub release with assets and checksums
+
+**Manual Release (if needed):**
+```bash
+# Build all platforms
+make build-all
+
+# Generate checksums
+make checksums-all
+
+# Create and push tag manually
+git tag -a v0.3.0 -m "Release v0.3.0"
+git push origin v0.3.0
+```
+
+The release workflow will automatically:
+- Build for Linux (amd64, arm64)
+- Build for macOS (amd64, arm64)
+- Build for Windows (amd64, arm64)
+- Generate SHA256 checksums
+- Create GitHub release with all assets
+
 ---
 
 ## Architecture

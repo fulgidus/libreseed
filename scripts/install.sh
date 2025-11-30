@@ -157,24 +157,33 @@ download_binary() {
     log_success "${binary_name} download complete"
 }
 
-# Verify checksum
+# Verify checksum for a specific binary
 verify_checksum() {
-    log_info "Verifying checksum..."
+    local binary_name="$1"
+    local binary_file="${binary_name}-${PLATFORM}"
     
-    cd "$(dirname "$DOWNLOAD_FILE")"
+    if [ "$OS_TYPE" = "windows" ]; then
+        binary_file="${binary_file}.exe"
+    fi
+    
+    local checksum_file="${TMP_DIR}/${binary_file}.sha256"
+    
+    log_info "Verifying checksum for ${binary_name}..."
+    
+    cd "$TMP_DIR"
     
     if command -v sha256sum > /dev/null 2>&1; then
-        if ! sha256sum -c "$CHECKSUM_FILE" > /dev/null 2>&1; then
-            log_error "Checksum verification failed!"
+        if ! sha256sum -c "$checksum_file" > /dev/null 2>&1; then
+            log_error "Checksum verification failed for ${binary_name}!"
             log_error "The downloaded binary may be corrupted or tampered with."
-            rm -rf "$(dirname "$DOWNLOAD_FILE")"
+            rm -rf "$TMP_DIR"
             exit 1
         fi
     elif command -v shasum > /dev/null 2>&1; then
-        if ! shasum -a 256 -c "$CHECKSUM_FILE" > /dev/null 2>&1; then
-            log_error "Checksum verification failed!"
+        if ! shasum -a 256 -c "$checksum_file" > /dev/null 2>&1; then
+            log_error "Checksum verification failed for ${binary_name}!"
             log_error "The downloaded binary may be corrupted or tampered with."
-            rm -rf "$(dirname "$DOWNLOAD_FILE")"
+            rm -rf "$TMP_DIR"
             exit 1
         fi
     else
@@ -182,14 +191,23 @@ verify_checksum() {
         exit 1
     fi
     
-    log_success "Checksum verified"
+    log_success "Checksum verified for ${binary_name}"
 }
 
-# Install binary
+# Install a specific binary
 install_binary() {
-    log_info "Installing to ${INSTALL_DIR}/${BINARY_NAME}..."
+    local binary_name="$1"
+    local binary_file="${binary_name}-${PLATFORM}"
     
-    # Create install directory if it doesn't exist
+    if [ "$OS_TYPE" = "windows" ]; then
+        binary_file="${binary_file}.exe"
+    fi
+    
+    local download_file="${TMP_DIR}/${binary_file}"
+    
+    log_info "Installing ${binary_name} to ${INSTALL_DIR}/${binary_name}..."
+    
+    # Create install directory if it doesn't exist (only once)
     if [ ! -d "$INSTALL_DIR" ]; then
         log_info "Creating directory: $INSTALL_DIR"
         if [ "$USE_SYSTEM" = true ]; then
@@ -206,27 +224,24 @@ install_binary() {
     fi
     
     # Make binary executable
-    chmod +x "$DOWNLOAD_FILE"
+    chmod +x "$download_file"
     
     # Install binary
     if [ "$USE_SYSTEM" = true ]; then
-        if ! sudo mv "$DOWNLOAD_FILE" "${INSTALL_DIR}/${BINARY_NAME}"; then
-            log_error "Failed to install binary"
-            rm -rf "$(dirname "$DOWNLOAD_FILE")"
+        if ! sudo mv "$download_file" "${INSTALL_DIR}/${binary_name}"; then
+            log_error "Failed to install ${binary_name}"
+            rm -rf "$TMP_DIR"
             exit 1
         fi
     else
-        if ! mv "$DOWNLOAD_FILE" "${INSTALL_DIR}/${BINARY_NAME}"; then
-            log_error "Failed to install binary"
-            rm -rf "$(dirname "$DOWNLOAD_FILE")"
+        if ! mv "$download_file" "${INSTALL_DIR}/${binary_name}"; then
+            log_error "Failed to install ${binary_name}"
+            rm -rf "$TMP_DIR"
             exit 1
         fi
     fi
     
-    # Clean up
-    rm -rf "$(dirname "$DOWNLOAD_FILE")"
-    
-    log_success "Installation complete!"
+    log_success "${binary_name} installed!"
 }
 
 # Check if install directory is in PATH
@@ -261,14 +276,18 @@ display_completion() {
     echo -e "${GREEN}║  LibreSeed ${VERSION} installed successfully!  ║${NC}"
     echo -e "${GREEN}╚════════════════════════════════════════════════╝${NC}"
     echo ""
-    log_info "Installed to: ${INSTALL_DIR}/${BINARY_NAME}"
-    log_info "Verify installation: ${BINARY_NAME} --version"
+    log_info "Installed binaries to: ${INSTALL_DIR}"
+    for binary in "${BINARIES[@]}"; do
+        log_info "  - ${binary}"
+    done
     echo ""
-    log_info "Start the daemon: ${BINARY_NAME} start"
-    log_info "View daemon status: ${BINARY_NAME} status"
-    log_info "View statistics: ${BINARY_NAME} stats"
+    log_info "Verify installation: lbs --version"
     echo ""
-    log_info "For more commands, run: ${BINARY_NAME} --help"
+    log_info "Start the daemon: lbs start"
+    log_info "View daemon status: lbs status"
+    log_info "View statistics: lbs stats"
+    echo ""
+    log_info "For more commands, run: lbs --help"
     echo ""
 }
 
@@ -290,9 +309,20 @@ main() {
     log_info "Detected platform: $PLATFORM"
     
     get_latest_version
-    download_binary
-    verify_checksum
-    install_binary
+    
+    # Create temporary directory for downloads
+    TMP_DIR=$(mktemp -d)
+    
+    # Download, verify, and install each binary
+    for binary in "${BINARIES[@]}"; do
+        download_binary "$binary"
+        verify_checksum "$binary"
+        install_binary "$binary"
+    done
+    
+    # Clean up temporary directory
+    rm -rf "$TMP_DIR"
+    
     check_path
     display_completion
 }

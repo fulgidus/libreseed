@@ -14,8 +14,8 @@ func getAPIAddr() string {
 		return "http://" + addr
 	}
 	// TODO: Could read from config file if needed
-	// Default to localhost:8080
-	return "http://localhost:8080"
+	// Default to 127.0.0.1:9091
+	return "http://127.0.0.1:9091"
 }
 
 func main() {

@@ -54,7 +54,7 @@ func DefaultConfig() *DaemonConfig {
 	}
 
 	return &DaemonConfig{
-		ListenAddr: "127.0.0.1:8080",
+		ListenAddr: "127.0.0.1:9091",
 		StorageDir: filepath.Join(homeDir, ".local", "share", "libreseed", "storage"),
 		DHTPort:    6881,
 		DHTBootstrapNodes: []string{

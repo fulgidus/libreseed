@@ -57,6 +57,9 @@ func main() {
 		os.Exit(1)
 	}
 
+	// DEBUG: Print loaded configuration
+	fmt.Printf("DEBUG: Loaded config.ListenAddr = %s\n", config.ListenAddr)
+
 	// Create daemon instance
 	d, err := daemon.New(config)
 	if err != nil {
@@ -65,8 +68,12 @@ func main() {
 	}
 
 	// Setup signal handling for graceful shutdown
+	// Note: We do NOT listen for SIGHUP as daemons should ignore it
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+
+	// Explicitly ignore SIGHUP (common when parent terminal closes)
+	signal.Ignore(syscall.SIGHUP)
 
 	// Create shutdown channel for HTTP-initiated shutdown
 	shutdownChan := make(chan struct{})
@@ -99,12 +106,15 @@ func main() {
 			select {
 			case <-ticker.C:
 				// Check if daemon was stopped (e.g., via HTTP /shutdown endpoint)
-				if d.GetState().Status == "stopped" || d.GetState().Status == "stopping" {
+				state := d.GetState()
+				if state.Status == "stopped" || state.Status == "stopping" {
+					fmt.Printf("DEBUG: Daemon status changed to %s, triggering shutdown\n", state.Status)
 					close(shutdownChan)
 					return
 				}
-			case <-sigChan:
+			case sig := <-sigChan:
 				// Signal received, let main goroutine handle it
+				fmt.Printf("DEBUG: Monitor goroutine received signal %v\n", sig)
 				return
 			}
 		}
@@ -112,8 +122,8 @@ func main() {
 
 	// Wait for shutdown signal (either OS signal or HTTP-initiated)
 	select {
-	case <-sigChan:
-		fmt.Println("\nShutting down...")
+	case sig := <-sigChan:
+		fmt.Printf("\nShutting down (signal: %v)...\n", sig)
 	case <-shutdownChan:
 		fmt.Println("\nShutdown requested via API...")
 	}

@@ -1,0 +1,78 @@
+name: Auto Tag and Release
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'VERSION'
+
+permissions:
+  contents: write
+
+jobs:
+  auto-tag:
+    name: Auto Tag on VERSION Change
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2  # Need at least 2 commits to detect changes
+
+      - name: Check if VERSION file changed
+        id: version-check
+        run: |
+          # Check if VERSION file was modified in the last commit
+          if git diff --name-only HEAD^ HEAD | grep -q '^VERSION$'; then
+            echo "VERSION file changed"
+            echo "changed=true" >> $GITHUB_OUTPUT
+          else
+            echo "VERSION file not changed"
+            echo "changed=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Read VERSION file
+        if: steps.version-check.outputs.changed == 'true'
+        id: read-version
+        run: |
+          VERSION=$(cat VERSION | tr -d '[:space:]')
+          echo "Version: $VERSION"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Check if tag already exists
+        if: steps.version-check.outputs.changed == 'true'
+        id: tag-check
+        run: |
+          VERSION=${{ steps.read-version.outputs.version }}
+          if git rev-parse "v$VERSION" >/dev/null 2>&1; then
+            echo "Tag v$VERSION already exists"
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "Tag v$VERSION does not exist"
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create and push tag
+        if: steps.version-check.outputs.changed == 'true' && steps.tag-check.outputs.exists == 'false'
+        env:
+          VERSION: ${{ steps.read-version.outputs.version }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          
+          # Create annotated tag
+          git tag -a "v$VERSION" -m "Release v$VERSION"
+          
+          # Push tag to trigger release workflow
+          git push origin "v$VERSION"
+          
+          echo "✅ Created and pushed tag v$VERSION"
+          echo "🚀 Release workflow will now be triggered automatically"
+
+      - name: Tag already exists
+        if: steps.version-check.outputs.changed == 'true' && steps.tag-check.outputs.exists == 'true'
+        run: |
+          echo "⚠️ Tag v${{ steps.read-version.outputs.version }} already exists"
+          echo "No action taken. To create a new release, update VERSION to a new value."
+          exit 0

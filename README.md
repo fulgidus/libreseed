@@ -27,24 +27,59 @@ LibreSeed is a modern solution for peer-to-peer software package distribution, l
 
 ## Quick Start
 
-### Prerequisites
+### Installation
 
+#### Binary Installation (Recommended)
+
+Install the latest release directly from GitHub:
+
+```bash
+# User installation (no sudo required, installs to ~/.local/bin)
+curl -fsSL https://raw.githubusercontent.com/fulgidus/libreseed/main/scripts/install.sh | bash
+
+# System-wide installation (requires sudo, installs to /usr/local/bin)
+curl -fsSL https://raw.githubusercontent.com/fulgidus/libreseed/main/scripts/install.sh | bash -s -- --system
+```
+
+**Features:**
+- ✅ Automatic platform/architecture detection (Linux, macOS, Windows)
+- ✅ Downloads latest release from GitHub
+- ✅ SHA256 checksum verification (mandatory)
+- ✅ Installs `lbs` and `lbsd` binaries
+- ✅ No build dependencies required
+
+**Alternative: Manual Binary Installation**
+
+1. Download the latest release for your platform from [Releases](https://github.com/fulgidus/libreseed/releases)
+2. Verify the checksum:
+   ```bash
+   sha256sum -c lbs-linux-amd64.sha256
+   ```
+3. Make executable and move to PATH:
+   ```bash
+   chmod +x lbs-linux-amd64
+   sudo mv lbs-linux-amd64 /usr/local/bin/lbs
+   ```
+
+#### Build from Source
+
+If you prefer to build from source or need the latest development version:
+
+**Prerequisites:**
 - **Go** 1.21 or higher
 - **Make** (for build automation)
 - **Git** (to clone the repository)
-
-### Quick Installation
 
 ```bash
 # Clone the repository
 git clone https://github.com/fulgidus/libreseed.git
 cd libreseed
 
-# Install automatically
-./install.sh
+# Install from source
+./scripts/install-from-source.sh
 ```
 
-The `install.sh` script performs:
+The build script performs:
 - Prerequisites verification (Go, Make, sha256sum)
 - Binary builds (`lbs`, `lbsd`)
 - Checksum generation and verification
@@ -183,41 +218,46 @@ make install-system    # Install to /usr/local/bin (requires sudo)
 
 ```
 libreseed/
+├── .github/
+│   └── workflows/
+│       └── release.yml         # Automated release builds
 ├── cmd/
-│   ├── lbs/           # CLI source
+│   ├── lbs/                    # CLI source
 │   │   ├── main.go
-│   │   ├── start.go   # 'start' command
-│   │   ├── stop.go    # 'stop' command
-│   │   ├── status.go  # 'status' command
-│   │   ├── stats.go   # 'stats' command
-│   │   └── restart.go # 'restart' command
-│   └── lbsd/          # Daemon source
+│   │   ├── start.go            # 'start' command
+│   │   ├── stop.go             # 'stop' command
+│   │   ├── status.go           # 'status' command
+│   │   ├── stats.go            # 'stats' command
+│   │   └── restart.go          # 'restart' command
+│   └── lbsd/                   # Daemon source
 │       └── main.go
 ├── pkg/
-│   ├── daemon/        # Daemon logic
+│   ├── daemon/                 # Daemon logic
 │   │   ├── daemon.go
 │   │   ├── config.go
 │   │   ├── state.go
 │   │   └── statistics.go
-│   ├── dht/           # BitTorrent DHT integration
+│   ├── dht/                    # BitTorrent DHT integration
 │   │   ├── client.go
 │   │   ├── announcer.go
 │   │   ├── discovery.go
 │   │   └── peers.go
-│   ├── crypto/        # Package digital signature
+│   ├── crypto/                 # Package digital signature
 │   │   ├── keys.go
 │   │   └── signer.go
-│   ├── package/       # Package management
+│   ├── package/                # Package management
 │   │   ├── manifest.go
 │   │   └── description.go
-│   └── storage/       # Filesystem storage
+│   └── storage/                # Filesystem storage
 │       ├── filesystem.go
 │       └── metadata.go
-├── Makefile           # Build automation (20+ targets)
-├── install.sh         # Automatic installation script
-├── test-dht.sh        # DHT integration tests
-├── go.mod             # Go dependencies
-└── VERSION            # Current version (0.2.0)
+├── scripts/
+│   ├── install.sh              # Binary installer (curl | bash)
+│   ├── install-from-source.sh  # Build-from-source installer
+│   └── test-dht.sh             # DHT integration tests
+├── Makefile                    # Build automation (20+ targets)
+├── go.mod                      # Go dependencies
+└── VERSION                     # Current version (0.2.0)
 ```
 
 ### Main Dependencies

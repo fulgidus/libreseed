@@ -1,0 +1,163 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build Release Binaries
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          # Linux
+          - os: ubuntu-latest
+            goos: linux
+            goarch: amd64
+            artifact_name: lbs-linux-amd64
+          - os: ubuntu-latest
+            goos: linux
+            goarch: arm64
+            artifact_name: lbs-linux-arm64
+          
+          # macOS
+          - os: macos-latest
+            goos: darwin
+            goarch: amd64
+            artifact_name: lbs-darwin-amd64
+          - os: macos-latest
+            goos: darwin
+            goarch: arm64
+            artifact_name: lbs-darwin-arm64
+          
+          # Windows
+          - os: windows-latest
+            goos: windows
+            goarch: amd64
+            artifact_name: lbs-windows-amd64.exe
+          - os: windows-latest
+            goos: windows
+            goarch: arm64
+            artifact_name: lbs-windows-arm64.exe
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+
+      - name: Build binary
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: 0
+        run: |
+          go build -ldflags="-s -w -X main.version=${{ github.ref_name }}" -o ${{ matrix.artifact_name }} ./cmd/lbs
+
+      - name: Generate checksum
+        shell: bash
+        run: |
+          if [ "${{ matrix.goos }}" = "windows" ]; then
+            sha256sum ${{ matrix.artifact_name }} > ${{ matrix.artifact_name }}.sha256
+          else
+            sha256sum ${{ matrix.artifact_name }} > ${{ matrix.artifact_name }}.sha256
+          fi
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact_name }}
+          path: |
+            ${{ matrix.artifact_name }}
+            ${{ matrix.artifact_name }}.sha256
+
+  release:
+    name: Create GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Consolidate artifacts
+        run: |
+          mkdir -p release
+          find artifacts -type f -exec mv {} release/ \;
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release/*
+          draft: false
+          prerelease: ${{ contains(github.ref_name, '-') }}
+          generate_release_notes: true
+          body: |
+            ## Installation
+
+            ### Binary Installation (Recommended)
+            
+            **Linux/macOS:**
+            ```bash
+            # User install (~/.local/bin)
+            curl -fsSL https://raw.githubusercontent.com/${{ github.repository }}/main/scripts/install.sh | bash
+            
+            # System install (/usr/local/bin)
+            curl -fsSL https://raw.githubusercontent.com/${{ github.repository }}/main/scripts/install.sh | bash -s -- --system
+            ```
+
+            **Windows (PowerShell):**
+            ```powershell
+            # Coming soon - manual installation instructions below
+            ```
+
+            ### Manual Installation
+
+            1. Download the appropriate binary for your platform from the assets below
+            2. Download the corresponding `.sha256` file
+            3. Verify the checksum:
+               ```bash
+               sha256sum -c <binary>.sha256
+               ```
+            4. Make the binary executable (Linux/macOS):
+               ```bash
+               chmod +x <binary>
+               ```
+            5. Move to a directory in your PATH:
+               ```bash
+               sudo mv <binary> /usr/local/bin/lbs
+               ```
+
+            ### Build from Source
+
+            See [README.md](https://github.com/${{ github.repository }}#installation) for build-from-source instructions.
+
+            ## Platform Support
+
+            | Platform | Architecture | Binary |
+            |----------|-------------|---------|
+            | Linux | x86_64 | `lbs-linux-amd64` |
+            | Linux | ARM64 | `lbs-linux-arm64` |
+            | macOS | x86_64 | `lbs-darwin-amd64` |
+            | macOS | ARM64 | `lbs-darwin-arm64` |
+            | Windows | x86_64 | `lbs-windows-amd64.exe` |
+            | Windows | ARM64 | `lbs-windows-arm64.exe` |
+
+            ## Verification
+
+            All binaries include SHA256 checksums for verification:
+            ```bash
+            sha256sum -c <binary>.sha256
+            ```

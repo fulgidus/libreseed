@@ -1,0 +1,134 @@
+{
+    "$schema": "https://opencode.ai/config.json",
+    "keybinds": {
+        "session_child_cycle": "shift+ctrl+right",
+        "session_child_cycle_reverse": "shift+ctrl+left"
+    },
+    // Plugins Configuration
+    "plugin": [
+        "opencode-skills"
+    ],
+    // MCP Servers Configuration
+    // Note: MCP servers add to your context, so enable only what you need
+    "mcp": {
+        // ===== DOCUMENTATION & SEARCH =====
+        // Context7 - Search through library/framework documentation (REMOTE - recommended)
+        "context7": {
+            "type": "remote",
+            "url": "https://mcp.context7.com/mcp",
+            "enabled": true
+            // Optional: Add API key for higher rate-limits
+            // "headers": { "CONTEXT7_API_KEY": "{env:CONTEXT7_API_KEY}" }
+        },
+        // Grep by Vercel - Search code snippets on GitHub
+        "gh_grep": {
+            "type": "remote",
+            "url": "https://mcp.grep.app",
+            "enabled": true
+        },
+        // ===== FILE & SYSTEM OPERATIONS =====
+        // Filesystem - Secure file operations with configurable access controls
+        // Requires specifying allowed directories as arguments
+        "filesystem": {
+            "type": "local",
+            "command": [
+                "npx",
+                "-y",
+                "@modelcontextprotocol/server-filesystem",
+                "/home/fulgidus/Documents"
+            ],
+            "enabled": true // Enable and configure paths as needed
+        },
+        // ===== VERSION CONTROL =====
+        // Git - Read, search, and manipulate Git repositories
+        // NOTE: This is a Python-based MCP server, use uvx instead of npx
+        "git": {
+            "type": "local",
+            "command": [
+                "uvx",
+                "mcp-server-git"
+            ],
+            "enabled": true // OpenCode has built-in git support, enable if you need more
+        },
+        // ===== WEB & FETCH =====
+        // Fetch - Web content fetching and conversion for efficient LLM usage
+        // NOTE: This is a Python-based MCP server, use uvx instead of npx
+        "fetch": {
+            "type": "local",
+            "command": [
+                "uvx",
+                "mcp-server-fetch"
+            ],
+            "enabled": true // OpenCode has built-in webfetch, enable if you need more
+        },
+        // ===== UTILITIES =====
+        // Time - Time and timezone conversion capabilities
+        // NOTE: This is a Python-based MCP server, use uvx instead of npx
+        "time": {
+            "type": "local",
+            "command": [
+                "uvx",
+                "mcp-server-time"
+            ],
+            "enabled": true
+        },
+        // ===== DATABASES (enable as needed) =====
+        // PostgreSQL - Read-only database access with schema inspection
+        // "postgres": {
+        //   "type": "local",
+        //   "command": ["npx", "-y", "@modelcontextprotocol/server-postgres"],
+        //   "environment": {
+        //     "POSTGRES_CONNECTION_STRING": "{env:POSTGRES_CONNECTION_STRING}"
+        //   },
+        //   "enabled": true
+        // },
+        // SQLite - Database interaction and business intelligence
+        // "sqlite": {
+        //   "type": "local",
+        //   "command": ["npx", "-y", "@modelcontextprotocol/server-sqlite", "/path/to/database.db"],
+        //   "enabled": true
+        // },
+        // ===== BROWSER AUTOMATION (enable as needed) =====
+        // Puppeteer - Browser automation and web scraping
+        // "puppeteer": {
+        //   "type": "local",
+        //   "command": ["npx", "-y", "@modelcontextprotocol/server-puppeteer"],
+        //   "enabled": true
+        // },
+        // ===== AI-POWERED SEARCH & RESEARCH =====
+        // Perplexity - AI-powered web search with citations for market research and competitive intelligence
+        // Tools: perplexity_search, perplexity_ask, perplexity_research, perplexity_reason
+        "perplexity": {
+            "type": "local",
+            "command": [
+                "npx",
+                "-y",
+                "@perplexity-ai/mcp-server"
+            ],
+            "environment": {
+                "PERPLEXITY_API_KEY": "{env:PERPLEXITY_API_KEY}"
+            },
+            "enabled": false // Disabled - replaced by web-search
+        },
+        // Web Search - Web search for market research and competitive intelligence
+        "web-search": {
+            "type": "local",
+            "command": [
+                "npx",
+                "-y",
+                "open-websearch@latest"
+            ],
+            "environment": {
+                "MODE": "stdio",
+                "DEFAULT_SEARCH_ENGINE": "duckduckgo"
+            },
+            "enabled": true
+        }
+    },
+    // Instructions - Load agent definitions and behavioral patterns
+    "instructions": [
+        "AGENTS.md",
+        ".opencode/AGENTS.md",
+        ".opencode/agent/*.md"
+    ]
+}

@@ -1,8 +1,0 @@
-packages:
-  - name: hello-world
-    version: 1.0.0
-    description: Test package for LibreSeed DHT verification
-    files:
-      - path: main.go
-        size: 85
-        hash: sha256

@@ -7,6 +7,8 @@ e questo progetto aderisce al [Semantic Versioning](https://semver.org/lang/it/)
 
 ## [Non rilasciato]
 
+## [0.2.0] - 2025-11-30
+
 ### Aggiunto
 - Sistema di configurazione con supporto variabili d'ambiente (`LoadFromEnv()`)
   - Supporto per 10+ variabili di configurazione (`LIBRESEED_*`)
@@ -41,10 +43,40 @@ e questo progetto aderisce al [Semantic Versioning](https://semver.org/lang/it/)
   - Aggiunta sezione strategia di testing completa
   - Documentati apprendimenti di processo e razionale decisioni
 
+### Automazione
+- **Makefile** completo con 20+ target per build, test, install
+  - Build multipiattaforma con rilevamento automatico OS/architettura
+  - Generazione e verifica checksum SHA-256
+  - Target per linting, formatting, pulizia
+  - Supporto per installazione system-wide e locale
+- **Script di installazione** (`install.sh`) production-ready
+  - Installazione transazionale con rollback automatico su fallimento
+  - Backup automatico di binari esistenti prima dell'aggiornamento
+  - Verifica prerequisiti (versione Go, Make, sha256sum)
+  - Rilevamento piattaforma e validazione ambiente
+  - Capacità di disinstallazione (`--uninstall`)
+  - Gestione permessi e creazione directory di sistema
+- **Script di test DHT** (`test-dht.sh`) per verifica integrazione
+
+### Documentazione
+- **DHT_INTEGRATION_COMPLETE.md**: Log completo sessione integrazione DHT
+  - Documentate tutte le 8 fix di compilazione API DHT
+  - Fix di validazione configurazione documentati
+  - Risultati di verifica runtime inclusi
+  - Decisioni tecniche e apprendimenti registrati
+- **PROGRESS.md**: Tracciamento sviluppo per Fasi 1-3
+  - Riassunti completamento fase
+  - Metriche di sviluppo
+  - Roadmap future features
+- **manual-test-commands.md**: Guida riferimento test manuali
+  - Procedure di test e troubleshooting
+  - Comandi di verifica e diagnostica
+
 ### Note Tecniche
 - Formato PID file: `PID:ADDRESS\n` (es. `2974845:127.0.0.1:9091\n`)
 - Priorità scoperta indirizzo: PID file → env var `LIBRESEED_LISTEN_ADDR` → default `localhost:8080`
 - Daemon forking: processo figlio gestito tramite `exec.Command` con detach completo
+- Build system richiede Go 1.21+, GNU Make, sha256sum
 
 ## [0.1.0] - 2025-11-29
 
@@ -73,4 +105,5 @@ e questo progetto aderisce al [Semantic Versioning](https://semver.org/lang/it/)
 - Formato stringa: `algorithm:fingerprint` (es. `ed25519:a1b2c3d4e5f67890`)
 - Nessuna dipendenza esterna per le operazioni crittografiche core
 
+[0.2.0]: https://github.com/libreseed/libreseed/releases/tag/v0.2.0
 [0.1.0]: https://github.com/libreseed/libreseed/releases/tag/v0.1.0

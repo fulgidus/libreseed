@@ -90,31 +90,31 @@ jobs:
           - os: ubuntu-latest
             goos: linux
             goarch: amd64
-            artifact_name: lbs-linux-amd64
+            platform: linux-amd64
           - os: ubuntu-latest
             goos: linux
             goarch: arm64
-            artifact_name: lbs-linux-arm64
+            platform: linux-arm64
           
           # macOS
           - os: macos-latest
             goos: darwin
             goarch: amd64
-            artifact_name: lbs-darwin-amd64
+            platform: darwin-amd64
           - os: macos-latest
             goos: darwin
             goarch: arm64
-            artifact_name: lbs-darwin-arm64
+            platform: darwin-arm64
           
           # Windows
           - os: windows-latest
             goos: windows
             goarch: amd64
-            artifact_name: lbs-windows-amd64.exe
+            platform: windows-amd64
           - os: windows-latest
             goos: windows
             goarch: arm64
-            artifact_name: lbs-windows-arm64.exe
+            platform: windows-arm64
 
     steps:
       - name: Checkout code
@@ -127,26 +127,50 @@ jobs:
         with:
           go-version: '1.24'
 
-      - name: Build binary
+      - name: Build lbs binary
         env:
           GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.goarch }}
           CGO_ENABLED: 0
-        run: |
-          go build -ldflags="-s -w -X main.version=v${{ needs.check-and-prepare.outputs.version }}" -o ${{ matrix.artifact_name }} ./cmd/lbs
-
-      - name: Generate checksum
         shell: bash
         run: |
-          sha256sum ${{ matrix.artifact_name }} > ${{ matrix.artifact_name }}.sha256
+          if [ "${{ matrix.goos }}" = "windows" ]; then
+            go build -ldflags="-s -w -X main.version=v${{ needs.check-and-prepare.outputs.version }}" -o lbs-${{ matrix.platform }}.exe ./cmd/lbs
+          else
+            go build -ldflags="-s -w -X main.version=v${{ needs.check-and-prepare.outputs.version }}" -o lbs-${{ matrix.platform }} ./cmd/lbs
+          fi
+
+      - name: Build lbsd binary
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: 0
+        shell: bash
+        run: |
+          if [ "${{ matrix.goos }}" = "windows" ]; then
+            go build -ldflags="-s -w -X main.version=v${{ needs.check-and-prepare.outputs.version }}" -o lbsd-${{ matrix.platform }}.exe ./cmd/lbsd
+          else
+            go build -ldflags="-s -w -X main.version=v${{ needs.check-and-prepare.outputs.version }}" -o lbsd-${{ matrix.platform }} ./cmd/lbsd
+          fi
+
+      - name: Generate checksums
+        shell: bash
+        run: |
+          if [ "${{ matrix.goos }}" = "windows" ]; then
+            sha256sum lbs-${{ matrix.platform }}.exe > lbs-${{ matrix.platform }}.exe.sha256
+            sha256sum lbsd-${{ matrix.platform }}.exe > lbsd-${{ matrix.platform }}.exe.sha256
+          else
+            sha256sum lbs-${{ matrix.platform }} > lbs-${{ matrix.platform }}.sha256
+            sha256sum lbsd-${{ matrix.platform }} > lbsd-${{ matrix.platform }}.sha256
+          fi
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.artifact_name }}
+          name: binaries-${{ matrix.platform }}
           path: |
-            ${{ matrix.artifact_name }}
-            ${{ matrix.artifact_name }}.sha256
+            lbs-${{ matrix.platform }}*
+            lbsd-${{ matrix.platform }}*
 
   release:
     name: Create GitHub Release
@@ -228,14 +252,14 @@ jobs:
 
             ## Platform Support
 
-            | Platform | Architecture | Binary |
-            |----------|-------------|---------|
-            | Linux | x86_64 | `lbs-linux-amd64` |
-            | Linux | ARM64 | `lbs-linux-arm64` |
-            | macOS | x86_64 | `lbs-darwin-amd64` |
-            | macOS | ARM64 | `lbs-darwin-arm64` |
-            | Windows | x86_64 | `lbs-windows-amd64.exe` |
-            | Windows | ARM64 | `lbs-windows-arm64.exe` |
+            | Platform | Architecture | Client Binary | Daemon Binary |
+            |----------|-------------|---------------|---------------|
+            | Linux | x86_64 | `lbs-linux-amd64` | `lbsd-linux-amd64` |
+            | Linux | ARM64 | `lbs-linux-arm64` | `lbsd-linux-arm64` |
+            | macOS | x86_64 | `lbs-darwin-amd64` | `lbsd-darwin-amd64` |
+            | macOS | ARM64 | `lbs-darwin-arm64` | `lbsd-darwin-arm64` |
+            | Windows | x86_64 | `lbs-windows-amd64.exe` | `lbsd-windows-amd64.exe` |
+            | Windows | ARM64 | `lbs-windows-arm64.exe` | `lbsd-windows-arm64.exe` |
 
             ## Verification
 

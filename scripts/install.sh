@@ -1,12 +1,12 @@
 #!/bin/bash
 # LibreSeed Binary Installation Script
-# Automatically downloads and installs the latest LibreSeed binary
+# Automatically downloads and installs the latest LibreSeed binaries (lbs and lbsd)
 
 set -e
 
 # Configuration
 REPO="fulgidus/libreseed"
-BINARY_NAME="lbs"
+BINARIES=("lbs" "lbsd")  # Install both CLI and daemon
 DEFAULT_INSTALL_DIR="$HOME/.local/bin"
 SYSTEM_INSTALL_DIR="/usr/local/bin"
 
@@ -90,11 +90,7 @@ detect_platform() {
     esac
     
     PLATFORM="${os}-${arch}"
-    BINARY_FILE="lbs-${PLATFORM}"
-    
-    if [ "$os" = "windows" ]; then
-        BINARY_FILE="${BINARY_FILE}.exe"
-    fi
+    OS_TYPE="$os"
 }
 
 # Get latest release version from GitHub

@@ -114,43 +114,47 @@ get_latest_version() {
     log_info "Latest version: $VERSION"
 }
 
-# Download binary and checksum
+# Download binary and checksum for a specific binary name
 download_binary() {
-    local download_url="https://github.com/${REPO}/releases/download/${VERSION}/${BINARY_FILE}"
+    local binary_name="$1"
+    local binary_file="${binary_name}-${PLATFORM}"
+    
+    if [ "$OS_TYPE" = "windows" ]; then
+        binary_file="${binary_file}.exe"
+    fi
+    
+    local download_url="https://github.com/${REPO}/releases/download/${VERSION}/${binary_file}"
     local checksum_url="${download_url}.sha256"
-    local tmp_dir
+    local download_file="${TMP_DIR}/${binary_file}"
+    local checksum_file="${TMP_DIR}/${binary_file}.sha256"
     
-    tmp_dir=$(mktemp -d)
-    DOWNLOAD_FILE="${tmp_dir}/${BINARY_FILE}"
-    CHECKSUM_FILE="${tmp_dir}/${BINARY_FILE}.sha256"
-    
-    log_info "Downloading binary from ${download_url}..."
+    log_info "Downloading ${binary_name} from ${download_url}..."
     
     if command -v curl > /dev/null 2>&1; then
-        if ! curl -fsSL -o "$DOWNLOAD_FILE" "$download_url"; then
-            log_error "Failed to download binary"
-            rm -rf "$tmp_dir"
+        if ! curl -fsSL -o "$download_file" "$download_url"; then
+            log_error "Failed to download ${binary_name}"
+            rm -rf "$TMP_DIR"
             exit 1
         fi
-        if ! curl -fsSL -o "$CHECKSUM_FILE" "$checksum_url"; then
-            log_error "Failed to download checksum"
-            rm -rf "$tmp_dir"
+        if ! curl -fsSL -o "$checksum_file" "$checksum_url"; then
+            log_error "Failed to download checksum for ${binary_name}"
+            rm -rf "$TMP_DIR"
             exit 1
         fi
     elif command -v wget > /dev/null 2>&1; then
-        if ! wget -q -O "$DOWNLOAD_FILE" "$download_url"; then
-            log_error "Failed to download binary"
-            rm -rf "$tmp_dir"
+        if ! wget -q -O "$download_file" "$download_url"; then
+            log_error "Failed to download ${binary_name}"
+            rm -rf "$TMP_DIR"
             exit 1
         fi
-        if ! wget -q -O "$CHECKSUM_FILE" "$checksum_url"; then
-            log_error "Failed to download checksum"
-            rm -rf "$tmp_dir"
+        if ! wget -q -O "$checksum_file" "$checksum_url"; then
+            log_error "Failed to download checksum for ${binary_name}"
+            rm -rf "$TMP_DIR"
             exit 1
         fi
     fi
     
-    log_success "Download complete"
+    log_success "${binary_name} download complete"
 }
 
 # Verify checksum

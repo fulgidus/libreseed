@@ -44,10 +44,8 @@ func startCommand(args []string) error {
 	// Pass environment variables to daemon
 	cmd.Env = os.Environ()
 
-	// Detach from parent process
-	cmd.SysProcAttr = &syscall.SysProcAttr{
-		Setsid: true, // Create new session
-	}
+	// Detach from parent process (platform-specific)
+	setProcAttributes(cmd)
 
 	// Redirect stdout/stderr to log file
 	logPath := getLogPath()

@@ -258,8 +258,8 @@ check_path() {
 display_completion() {
     echo ""
     echo -e "${GREEN}╔════════════════════════════════════════════════╗${NC}"
-    echo -e "${GREEN}║  LibreSeed ${VERSION} installed successfully! ║${NC}"
-    echo -e "${GREEN}╔════════════════════════════════════════════════╗${NC}"
+    echo -e "${GREEN}║  LibreSeed ${VERSION} installed successfully!  ║${NC}"
+    echo -e "${GREEN}╚════════════════════════════════════════════════╝${NC}"
     echo ""
     log_info "Installed to: ${INSTALL_DIR}/${BINARY_NAME}"
     log_info "Verify installation: ${BINARY_NAME} --version"
@@ -276,7 +276,7 @@ display_completion() {
 main() {
     echo ""
     echo -e "${BLUE}╔════════════════════════════════════════════╗${NC}"
-    echo -e "${BLUE}║  LibreSeed Binary Installation Script    ║${NC}"
+    echo -e "${BLUE}║  LibreSeed Binary Installation Script      ║${NC}"
     echo -e "${BLUE}╚════════════════════════════════════════════╝${NC}"
     echo ""
     

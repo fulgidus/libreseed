@@ -260,3 +260,115 @@ func (s *Signature) String() string {
 		signaturePreview,
 		timestamp)
 }
+
+// VerifyDualSignature verifica entrambe le firme (creator e maintainer) su un manifest.
+//
+// Questa funzione implementa il sistema di doppia firma richiesto per la fiducia
+// dei pacchetti: sia il creatore che il maintainer devono firmare il manifest.
+//
+// Parametri:
+//   - data: i dati originali firmati (solitamente il manifest serializzato)
+//   - creatorPubKey: la chiave pubblica del creatore del pacchetto
+//   - creatorSig: la firma del creatore
+//   - maintainerPubKey: la chiave pubblica del maintainer del pacchetto
+//   - maintainerSig: la firma del maintainer
+//
+// Restituisce:
+//   - error: nil se entrambe le firme sono valide, altrimenti un errore descrittivo
+//
+// Errori possibili:
+//   - Firma del creatore non valida
+//   - Firma del maintainer non valida
+//   - Chiavi pubbliche nil o vuote
+//   - Firme nil
+//
+// Esempio:
+//
+//	manifestData := []byte("manifest serializzato")
+//	creatorKey := PublicKey{/* chiave creatore */}
+//	creatorSig := &Signature{/* firma creatore */}
+//	maintainerKey := PublicKey{/* chiave maintainer */}
+//	maintainerSig := &Signature{/* firma maintainer */}
+//
+//	err := VerifyDualSignature(manifestData, creatorKey, creatorSig, maintainerKey, maintainerSig)
+//	if err != nil {
+//	    log.Printf("Verifica doppia firma fallita: %v", err)
+//	    return
+//	}
+func VerifyDualSignature(
+	data []byte,
+	creatorPubKey PublicKey,
+	creatorSig *Signature,
+	maintainerPubKey PublicKey,
+	maintainerSig *Signature,
+) error {
+	// Verifica la firma del creatore
+	if err := Verify(creatorPubKey, data, creatorSig); err != nil {
+		return fmt.Errorf("verifica firma creatore fallita: %w", err)
+	}
+
+	// Verifica la firma del maintainer
+	if err := Verify(maintainerPubKey, data, maintainerSig); err != nil {
+		return fmt.Errorf("verifica firma maintainer fallita: %w", err)
+	}
+
+	return nil
+}
+
+// VerifyCreatorSignature verifica solo la firma del creatore su un manifest.
+//
+// Questa è una funzione helper per verificare solo la firma del creatore.
+// Per il sistema completo di doppia firma, usare VerifyDualSignature.
+//
+// Parametri:
+//   - data: i dati originali firmati
+//   - creatorPubKey: la chiave pubblica del creatore
+//   - signature: la firma da verificare
+//
+// Restituisce:
+//   - error: nil se la firma è valida, altrimenti un errore
+//
+// Esempio:
+//
+//	manifestData := []byte("manifest")
+//	creatorKey := PublicKey{/* chiave creatore */}
+//	sig := &Signature{/* firma */}
+//
+//	if err := VerifyCreatorSignature(manifestData, creatorKey, sig); err != nil {
+//	    log.Printf("Firma creatore non valida: %v", err)
+//	}
+func VerifyCreatorSignature(data []byte, creatorPubKey PublicKey, signature *Signature) error {
+	if err := Verify(creatorPubKey, data, signature); err != nil {
+		return fmt.Errorf("verifica firma creatore fallita: %w", err)
+	}
+	return nil
+}
+
+// VerifyMaintainerSignature verifica solo la firma del maintainer su un manifest.
+//
+// Questa è una funzione helper per verificare solo la firma del maintainer.
+// Per il sistema completo di doppia firma, usare VerifyDualSignature.
+//
+// Parametri:
+//   - data: i dati originali firmati
+//   - maintainerPubKey: la chiave pubblica del maintainer
+//   - signature: la firma da verificare
+//
+// Restituisce:
+//   - error: nil se la firma è valida, altrimenti un errore
+//
+// Esempio:
+//
+//	manifestData := []byte("manifest")
+//	maintainerKey := PublicKey{/* chiave maintainer */}
+//	sig := &Signature{/* firma */}
+//
+//	if err := VerifyMaintainerSignature(manifestData, maintainerKey, sig); err != nil {
+//	    log.Printf("Firma maintainer non valida: %v", err)
+//	}
+func VerifyMaintainerSignature(data []byte, maintainerPubKey PublicKey, signature *Signature) error {
+	if err := Verify(maintainerPubKey, data, signature); err != nil {
+		return fmt.Errorf("verifica firma maintainer fallita: %w", err)
+	}
+	return nil
+}

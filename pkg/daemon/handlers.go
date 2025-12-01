@@ -1,7 +1,6 @@
 package daemon
 
 import (
-	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -14,15 +13,20 @@ import (
 
 	"github.com/anacrolix/torrent/metainfo"
 	"github.com/libreseed/libreseed/pkg/crypto"
+	packagetypes "github.com/libreseed/libreseed/pkg/package"
 )
 
 // handlePackageAdd handles package addition requests.
 // POST /packages/add
 // Multipart form data:
-// - file: the package file
-// - name: package name
-// - version: package version
-// - description: package description (optional)
+// - file: the .lspkg package file (YAML with dual signatures)
+//
+// The package file must contain:
+// - Manifest with creator and maintainer public keys
+// - ManifestSignature (creator's signature)
+// - MaintainerManifestSignature (maintainer's signature)
+//
+// Both signatures are verified before accepting the package.
 func (d *Daemon) handlePackageAdd(w http.ResponseWriter, r *http.Request) {
 	log.Println("=== handlePackageAdd CALLED ===")
 
@@ -37,7 +41,7 @@ func (d *Daemon) handlePackageAdd(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Extract file
+	// Extract .lspkg file
 	file, header, err := r.FormFile("file")
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Failed to get file: %v", err), http.StatusBadRequest)
@@ -45,74 +49,67 @@ func (d *Daemon) handlePackageAdd(w http.ResponseWriter, r *http.Request) {
 	}
 	defer file.Close()
 
-	// Extract metadata
-	name := r.FormValue("name")
-	version := r.FormValue("version")
-	description := r.FormValue("description")
-
-	if name == "" || version == "" {
-		http.Error(w, "name and version are required", http.StatusBadRequest)
-		return
-	}
-
-	// Compute file hash
-	hasher := sha256.New()
-	if _, err := io.Copy(hasher, file); err != nil {
-		http.Error(w, fmt.Sprintf("Failed to compute hash: %v", err), http.StatusInternalServerError)
-		return
-	}
-	fileHash := hex.EncodeToString(hasher.Sum(nil))
-
-	// Reset file pointer for subsequent read
-	if _, err := file.Seek(0, 0); err != nil {
-		http.Error(w, fmt.Sprintf("Failed to reset file: %v", err), http.StatusInternalServerError)
-		return
-	}
-
-	// Create manifest data string for signing
-	manifestData := fmt.Sprintf("%s:%s:%s:%s", name, version, description, fileHash)
-
-	// Get public key for signing
-	pubKey, err := d.keyManager.PublicKeyCrypto()
+	// Read entire file into memory for parsing
+	fileData, err := io.ReadAll(file)
 	if err != nil {
-		http.Error(w, fmt.Sprintf("Failed to get public key: %v", err), http.StatusInternalServerError)
+		http.Error(w, fmt.Sprintf("Failed to read file: %v", err), http.StatusInternalServerError)
 		return
 	}
 
-	// Sign the manifest data using crypto.Sign()
-	signature, err := crypto.Sign(d.keyManager.PrivateKey(), *pubKey, []byte(manifestData))
+	// Parse .lspkg file structure
+	pkg, err := packagetypes.LoadPackageFromBytes(fileData)
 	if err != nil {
-		http.Error(w, fmt.Sprintf("Failed to sign manifest: %v", err), http.StatusInternalServerError)
+		http.Error(w, fmt.Sprintf("Failed to parse .lspkg file: %v", err), http.StatusBadRequest)
 		return
 	}
 
-	// Create PackageInfo with actual file size from uploaded file
+	// Serialize manifest for signature verification
+	manifestData, err := packagetypes.SerializeManifest(&pkg.Manifest)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Failed to serialize manifest: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	// Verify dual signatures
+	err = crypto.VerifyDualSignature(
+		manifestData,
+		pkg.Manifest.CreatorPubKey,
+		&pkg.ManifestSignature,
+		pkg.Manifest.MaintainerPubKey,
+		&pkg.MaintainerManifestSignature,
+	)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Signature verification failed: %v", err), http.StatusUnauthorized)
+		return
+	}
+
+	log.Printf("✓ Dual signature verification passed for package %s v%s\n", pkg.Manifest.PackageName, pkg.Manifest.Version)
+
+	// Compute creator and maintainer fingerprints
+	creatorFingerprint := pkg.Manifest.CreatorPubKey.Fingerprint()
+	maintainerFingerprint := pkg.Manifest.MaintainerPubKey.Fingerprint()
+
+	// Create PackageInfo from parsed package
 	packageInfo := &PackageInfo{
-		PackageID:          fileHash, // Using file hash as package ID
-		Name:               name,
-		Version:            version,
-		Description:        description,
-		FilePath:           "", // Will be set after file copy
-		FileHash:           fileHash,
-		FileSize:           header.Size, // Actual file size from multipart header
-		CreatedAt:          time.Now(),
-		CreatorFingerprint: d.keyManager.Fingerprint(),
-		ManifestSignature:  hex.EncodeToString(signature.Bytes()),
-		AnnouncedToDHT:     false,
+		PackageID:                   pkg.PackageID,
+		Name:                        pkg.Manifest.PackageName,
+		Version:                     pkg.Manifest.Version,
+		Description:                 pkg.Manifest.Description,
+		FilePath:                    "", // Will be set after file copy
+		FileHash:                    pkg.Manifest.ContentHash,
+		FileSize:                    pkg.SizeBytes,
+		CreatedAt:                   time.Now(),
+		CreatorFingerprint:          creatorFingerprint,
+		ManifestSignature:           hex.EncodeToString(pkg.ManifestSignature.SignedData),
+		MaintainerFingerprint:       maintainerFingerprint,
+		MaintainerManifestSignature: hex.EncodeToString(pkg.MaintainerManifestSignature.SignedData),
+		AnnouncedToDHT:              false,
 	}
 
-	// Copy file to packages directory
+	// Save .lspkg file to packages directory
 	destPath := filepath.Join(d.packageManager.GetStorageDir(), header.Filename)
-	destFile, err := os.Create(destPath)
-	if err != nil {
-		http.Error(w, fmt.Sprintf("Failed to create destination file: %v", err), http.StatusInternalServerError)
-		return
-	}
-	defer destFile.Close()
-
-	if _, err := io.Copy(destFile, file); err != nil {
-		os.Remove(destPath) // Clean up on failure
-		http.Error(w, fmt.Sprintf("Failed to copy file: %v", err), http.StatusInternalServerError)
+	if err := os.WriteFile(destPath, fileData, 0644); err != nil {
+		http.Error(w, fmt.Sprintf("Failed to save package file: %v", err), http.StatusInternalServerError)
 		return
 	}
 
@@ -136,9 +133,10 @@ func (d *Daemon) handlePackageAdd(w http.ResponseWriter, r *http.Request) {
 			var infoHash metainfo.Hash
 			copy(infoHash[:], infoHashBytes[:20])
 
-			// Add package to DHT announcer
-			d.announcer.AddPackage(infoHash, packageInfo.Name)
-			log.Printf("Called d.announcer.AddPackage for %s with InfoHash %x\n", packageInfo.Name, infoHash)
+			// Add package to DHT announcer with dual signature fingerprints
+			d.announcer.AddPackage(infoHash, packageInfo.Name, creatorFingerprint, maintainerFingerprint)
+			log.Printf("Called d.announcer.AddPackage for %s with InfoHash %x (Creator: %s, Maintainer: %s)\n",
+				packageInfo.Name, infoHash, creatorFingerprint, maintainerFingerprint)
 
 			// Update announcement status in package manager
 			if err := d.packageManager.UpdateAnnouncementStatus(packageInfo.PackageID, true); err != nil {
@@ -147,7 +145,7 @@ func (d *Daemon) handlePackageAdd(w http.ResponseWriter, r *http.Request) {
 				log.Printf("Successfully updated announcement status for package %s\n", packageInfo.PackageID)
 			}
 
-			log.Printf("Package %s announced to DHT with InfoHash %x\n", packageInfo.Name, infoHash)
+			log.Printf("Package %s announced to DHT with InfoHash %x\n", packageInfo.Name, pkg.Manifest.ContentHash)
 		} else {
 			log.Printf("Warning: Failed to convert package ID to InfoHash: %v\n", err)
 		}
@@ -164,13 +162,15 @@ func (d *Daemon) handlePackageAdd(w http.ResponseWriter, r *http.Request) {
 	d.stats.TotalPackagesSeeded++
 	d.stats.mu.Unlock()
 
-	// Return success response
+	// Return success response with both fingerprints
 	response := map[string]interface{}{
-		"status":      "success",
-		"package_id":  packageInfo.PackageID,
-		"fingerprint": packageInfo.CreatorFingerprint,
-		"file_hash":   fileHash,
-		"filename":    header.Filename,
+		"status":                 "success",
+		"package_id":             packageInfo.PackageID,
+		"creator_fingerprint":    creatorFingerprint,
+		"maintainer_fingerprint": maintainerFingerprint,
+		"file_hash":              pkg.Manifest.ContentHash,
+		"filename":               header.Filename,
+		"verified":               true,
 	}
 
 	w.Header().Set("Content-Type", "application/json")

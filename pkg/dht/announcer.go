@@ -11,18 +11,22 @@ import (
 )
 
 // PackageAnnouncement represents a package that should be announced to the DHT
+// In addition to the InfoHash (used for DHT peer discovery), we track the
+// creator and maintainer fingerprints for internal package verification and display.
 type PackageAnnouncement struct {
-	InfoHash      metainfo.Hash
-	PackageName   string
-	LastAnnounced time.Time
-	AnnounceCount int
-	Failed        bool
-	LastError     error
+	InfoHash              metainfo.Hash
+	PackageName           string
+	CreatorFingerprint    string // Fingerprint of the package creator's public key
+	MaintainerFingerprint string // Fingerprint of the package maintainer's public key
+	LastAnnounced         time.Time
+	AnnounceCount         int
+	Failed                bool
+	LastError             error
 }
 
 // Announcer manages periodic announcements of packages to the DHT
 type Announcer struct {
-	client   *Client
+	client   DHTClient
 	mu       sync.RWMutex
 	packages map[metainfo.Hash]*PackageAnnouncement
 	interval time.Duration
@@ -32,7 +36,7 @@ type Announcer struct {
 }
 
 // NewAnnouncer creates a new DHT announcer
-func NewAnnouncer(client *Client, interval time.Duration) *Announcer {
+func NewAnnouncer(client DHTClient, interval time.Duration) *Announcer {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &Announcer{
 		client:   client,
@@ -57,14 +61,17 @@ func (a *Announcer) Stop() {
 }
 
 // AddPackage adds a package to be announced
-func (a *Announcer) AddPackage(infoHash metainfo.Hash, packageName string) {
+// Includes creator and maintainer fingerprints for internal tracking and verification
+func (a *Announcer) AddPackage(infoHash metainfo.Hash, packageName string, creatorFingerprint string, maintainerFingerprint string) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
 	if _, exists := a.packages[infoHash]; !exists {
 		a.packages[infoHash] = &PackageAnnouncement{
-			InfoHash:    infoHash,
-			PackageName: packageName,
+			InfoHash:              infoHash,
+			PackageName:           packageName,
+			CreatorFingerprint:    creatorFingerprint,
+			MaintainerFingerprint: maintainerFingerprint,
 		}
 	}
 }

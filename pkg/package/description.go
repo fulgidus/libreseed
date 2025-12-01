@@ -24,6 +24,11 @@ type MinimalDescription struct {
 	// This MUST match the public key in the manifest (verified during package verification)
 	CreatorPubKey crypto.PublicKey `yaml:"creator_pubkey" json:"creator_pubkey"`
 
+	// MaintainerPubKey is the Ed25519 public key of the package maintainer
+	// This key provides the second signature in the dual-signature trust system
+	// May be the same as CreatorPubKey if creator is also maintainer
+	MaintainerPubKey crypto.PublicKey `yaml:"maintainer_pubkey" json:"maintainer_pubkey"`
+
 	// Name is the human-readable package name (matches manifest.package_name)
 	Name string `yaml:"name" json:"name"`
 
@@ -54,6 +59,9 @@ func (d *MinimalDescription) Validate() error {
 	}
 	if d.CreatorPubKey.Algorithm == "" {
 		return fmt.Errorf("minimal description: creator_pubkey is required")
+	}
+	if d.MaintainerPubKey.Algorithm == "" {
+		return fmt.Errorf("minimal description: maintainer_pubkey is required")
 	}
 	if d.Name == "" {
 		return fmt.Errorf("minimal description: name is required")
@@ -140,4 +148,15 @@ func (d *MinimalDescription) FullName() string {
 // CreatorFingerprint returns the truncated creator public key fingerprint for display.
 func (d *MinimalDescription) CreatorFingerprint() string {
 	return d.CreatorPubKey.Fingerprint()
+}
+
+// MaintainerFingerprint returns the truncated maintainer public key fingerprint for display.
+func (d *MinimalDescription) MaintainerFingerprint() string {
+	return d.MaintainerPubKey.Fingerprint()
+}
+
+// IsMaintainerSameAsCreator checks if the maintainer is the same as the creator.
+// Returns true if both public keys are identical (same fingerprint).
+func (d *MinimalDescription) IsMaintainerSameAsCreator() bool {
+	return d.MaintainerPubKey.Fingerprint() == d.CreatorPubKey.Fingerprint()
 }

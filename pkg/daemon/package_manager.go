@@ -45,6 +45,12 @@ type PackageInfo struct {
 	// ManifestSignature is the hex-encoded signature of the package manifest
 	ManifestSignature string `yaml:"manifest_signature"`
 
+	// MaintainerFingerprint is the maintainer's public key fingerprint
+	MaintainerFingerprint string `yaml:"maintainer_fingerprint"`
+
+	// MaintainerManifestSignature is the hex-encoded maintainer signature
+	MaintainerManifestSignature string `yaml:"maintainer_manifest_signature"`
+
 	// AnnouncedToDHT indicates if this package has been announced to the DHT
 	AnnouncedToDHT bool `yaml:"announced_to_dht"`
 
@@ -379,6 +385,29 @@ func (pm *PackageManager) validatePackageInfo(info *PackageInfo) error {
 	// Validate manifest signature format (must be hex-encoded)
 	if _, err := hex.DecodeString(info.ManifestSignature); err != nil {
 		return fmt.Errorf("manifest_signature must be valid hex: %w", err)
+	}
+
+	// Validate maintainer fingerprint (required for dual-signature packages)
+	if info.MaintainerFingerprint == "" {
+		return fmt.Errorf("maintainer_fingerprint is required")
+	}
+
+	// Validate maintainer fingerprint format (must be 16-character hex string)
+	if len(info.MaintainerFingerprint) != 16 {
+		return fmt.Errorf("maintainer_fingerprint must be 16-character hex string")
+	}
+	if _, err := hex.DecodeString(info.MaintainerFingerprint); err != nil {
+		return fmt.Errorf("maintainer_fingerprint must be valid hex: %w", err)
+	}
+
+	// Validate maintainer manifest signature (required for dual-signature packages)
+	if info.MaintainerManifestSignature == "" {
+		return fmt.Errorf("maintainer_manifest_signature is required")
+	}
+
+	// Validate maintainer manifest signature format (must be hex-encoded)
+	if _, err := hex.DecodeString(info.MaintainerManifestSignature); err != nil {
+		return fmt.Errorf("maintainer_manifest_signature must be valid hex: %w", err)
 	}
 
 	return nil

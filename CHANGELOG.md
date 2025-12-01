@@ -7,6 +7,14 @@ e questo progetto aderisce al [Semantic Versioning](https://semver.org/lang/it/)
 
 ## [Non rilasciato]
 
+### Aggiunto
+- **Supporto firma duale pacchetti (Creator + Maintainer)**:
+  - CLI `lbs add` ora visualizza sia Creator che Maintainer fingerprint
+  - CLI `lbs list` ora mostra Maintainer fingerprint quando diverso dal Creator
+  - Struct `PackageInfo` esteso con `MaintainerFingerprint` e `MaintainerManifestSignature`
+  - Visualizzazione condizionale: Maintainer mostrato solo se diverso dal Creator
+  - File modificati: `cmd/lbs/add.go` (linee 104-116), `cmd/lbs/list.go` (linee 24-28, 132-135)
+
 ## [0.3.0] - 2025-11-30
 
 ### Aggiunto

@@ -8,6 +8,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"os"
 	"path/filepath"
 	"sync"
 	"time"
@@ -71,6 +72,11 @@ func New(config *DaemonConfig) (*Daemon, error) {
 	keysDir := filepath.Join(baseDir, "keys")
 	packagesDir := filepath.Join(baseDir, "packages")
 	metaFile := filepath.Join(baseDir, "packages.yaml")
+
+	// Ensure required directories exist
+	if err := os.MkdirAll(packagesDir, 0755); err != nil {
+		return nil, fmt.Errorf("failed to create packages directory: %w", err)
+	}
 
 	// Initialize KeyManager
 	keyManager, err := crypto.NewKeyManager(keysDir)
@@ -170,7 +176,8 @@ func (d *Daemon) Start() error {
 
 			var infoHash metainfo.Hash
 			copy(infoHash[:], infoHashBytes[:20])
-			d.announcer.AddPackage(infoHash, pkg.Name)
+			// Use package fingerprints for DHT announcement
+			d.announcer.AddPackage(infoHash, pkg.Name, pkg.CreatorFingerprint, pkg.MaintainerFingerprint)
 		}
 		log.Println("=== Announcer population complete ===")
 	}
@@ -210,17 +217,25 @@ func (d *Daemon) Stop() error {
 		d.dhtClient.Stop()
 	}
 
-	// Shutdown HTTP server with timeout
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
+	// Shutdown HTTP server with timeout (only if it was started)
+	if d.httpServer != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
 
-	if err := d.httpServer.Shutdown(ctx); err != nil {
-		d.state.SetError(err)
-		return fmt.Errorf("failed to shutdown HTTP server: %w", err)
+		if err := d.httpServer.Shutdown(ctx); err != nil {
+			d.state.SetError(err)
+			return fmt.Errorf("failed to shutdown HTTP server: %w", err)
+		}
 	}
 
-	// Wait for background workers
-	<-d.stoppedCh
+	// Wait for background workers (only if they were started)
+	// Use select with timeout to avoid hanging if Start() was never called
+	select {
+	case <-d.stoppedCh:
+		// Background worker finished normally
+	case <-time.After(100 * time.Millisecond):
+		// Timeout - background worker was never started, that's ok
+	}
 
 	d.state.SetStatus(StatusStopped)
 	return nil

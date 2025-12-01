@@ -33,10 +33,11 @@ func (m *mockAnnouncer) Stop() {
 	m.started = false
 }
 
-func (m *mockAnnouncer) AddPackage(infoHash metainfo.Hash, packageName string) {
+func (m *mockAnnouncer) AddPackage(infoHash metainfo.Hash, packageName, creatorFingerprint, maintainerFingerprint string) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.packages[infoHash] = packageName
+	// Mock doesn't track fingerprints yet, but signature must match
 }
 
 func (m *mockAnnouncer) RemovePackage(infoHash metainfo.Hash) {
@@ -279,7 +280,8 @@ func syncPackagesToAnnouncer(pm *mockPackageManager, announcer *mockAnnouncer) {
 
 		var infoHash metainfo.Hash
 		copy(infoHash[:], infoHashBytes[:20])
-		announcer.AddPackage(infoHash, pkg.Name)
+		// Use fingerprints from package info (empty strings for test data without fingerprints)
+		announcer.AddPackage(infoHash, pkg.Name, pkg.CreatorFingerprint, pkg.MaintainerFingerprint)
 	}
 }
 

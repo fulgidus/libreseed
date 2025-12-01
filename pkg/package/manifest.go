@@ -10,6 +10,61 @@ import (
 	"github.com/libreseed/libreseed/pkg/crypto"
 )
 
+// Dependency represents a package dependency with version constraints.
+// Dependencies are resolved and validated before package installation.
+type Dependency struct {
+	// PackageName is the name of the required package
+	PackageName string `yaml:"package_name" json:"package_name"`
+
+	// VersionConstraint specifies the acceptable version range (e.g., ">=1.0.0", "^2.1.0")
+	VersionConstraint string `yaml:"version_constraint" json:"version_constraint"`
+
+	// Optional indicates if the dependency is optional (false = required)
+	Optional bool `yaml:"optional" json:"optional"`
+}
+
+// ConfigSchema defines external configuration requirements for immutable packages.
+// All mutable state must be externalized through configuration files.
+type ConfigSchema struct {
+	// Version is the configuration schema version (e.g., "1.0")
+	Version string `yaml:"version" json:"version"`
+
+	// ExternalPaths lists the configuration file paths the package expects
+	// These paths are relative to a system configuration directory
+	ExternalPaths []string `yaml:"external_paths" json:"external_paths"`
+
+	// SchemaURL is an optional URL to a JSON Schema or similar formal specification
+	SchemaURL string `yaml:"schema_url,omitempty" json:"schema_url,omitempty"`
+}
+
+// Validate checks that the Dependency contains valid data.
+func (d *Dependency) Validate() error {
+	if d.PackageName == "" {
+		return fmt.Errorf("dependency: package_name is required")
+	}
+	if d.VersionConstraint == "" {
+		return fmt.Errorf("dependency: version_constraint is required")
+	}
+	// TODO: Add semantic version constraint validation
+	return nil
+}
+
+// Validate checks that the ConfigSchema contains valid data.
+func (c *ConfigSchema) Validate() error {
+	if c.Version == "" {
+		return fmt.Errorf("config_schema: version is required")
+	}
+	if len(c.ExternalPaths) == 0 {
+		return fmt.Errorf("config_schema: external_paths must contain at least one path")
+	}
+	for i, path := range c.ExternalPaths {
+		if path == "" {
+			return fmt.Errorf("config_schema: external_paths[%d] cannot be empty", i)
+		}
+	}
+	return nil
+}
+
 // Manifest represents the complete package metadata and content description.
 // This is the INNER signed structure that describes all package contents.
 //
@@ -29,6 +84,19 @@ type Manifest struct {
 	// CreatorPubKey is the Ed25519 public key of the package creator
 	// This must match the key used to sign the manifest
 	CreatorPubKey crypto.PublicKey `yaml:"creator_pubkey" json:"creator_pubkey"`
+
+	// MaintainerPubKey is the Ed25519 public key of the package maintainer
+	// This key is used for the second signature in the dual-signature system
+	// Both creator and maintainer signatures are required for package trust
+	MaintainerPubKey crypto.PublicKey `yaml:"maintainer_pubkey" json:"maintainer_pubkey"`
+
+	// Dependencies lists all packages required by this package
+	// The package manager must resolve and approve dependencies before installation
+	Dependencies []Dependency `yaml:"dependencies,omitempty" json:"dependencies,omitempty"`
+
+	// ConfigSchema defines external configuration requirements
+	// Packages are immutable; all mutable state must be externalized
+	ConfigSchema *ConfigSchema `yaml:"config_schema,omitempty" json:"config_schema,omitempty"`
 
 	// ContentHash is the SHA-256 hash of all package content files
 	// This ensures tamper-proof content integrity
@@ -74,8 +142,13 @@ type Package struct {
 	Manifest Manifest `yaml:"manifest" json:"manifest"`
 
 	// ManifestSignature is the Ed25519 signature over (Manifest + ContentHash)
-	// This is the INNER signature that proves manifest authenticity
+	// This is the INNER signature that proves manifest authenticity (creator signature)
 	ManifestSignature crypto.Signature `yaml:"manifest_signature" json:"manifest_signature"`
+
+	// MaintainerManifestSignature is the Ed25519 signature by the maintainer
+	// This is the second signature in the dual-signature system
+	// Both creator and maintainer signatures are required for package trust
+	MaintainerManifestSignature crypto.Signature `yaml:"maintainer_manifest_signature" json:"maintainer_manifest_signature"`
 
 	// FilePath is the absolute path to the .lspkg file on disk
 	// This is NOT serialized (local information only)
@@ -99,8 +172,25 @@ func (m *Manifest) Validate() error {
 	if m.CreatorPubKey.Algorithm == "" {
 		return fmt.Errorf("manifest: creator_pubkey is required")
 	}
+	if m.MaintainerPubKey.Algorithm == "" {
+		return fmt.Errorf("manifest: maintainer_pubkey is required")
+	}
 	if m.ContentHash == "" {
 		return fmt.Errorf("manifest: content_hash is required")
+	}
+
+	// Validate dependencies
+	for i, dep := range m.Dependencies {
+		if err := dep.Validate(); err != nil {
+			return fmt.Errorf("manifest: dependencies[%d]: %w", i, err)
+		}
+	}
+
+	// Validate config schema if present
+	if m.ConfigSchema != nil {
+		if err := m.ConfigSchema.Validate(); err != nil {
+			return fmt.Errorf("manifest: config_schema: %w", err)
+		}
 	}
 	if len(m.ContentList) == 0 {
 		return fmt.Errorf("manifest: content_list must contain at least one file")
@@ -165,14 +255,17 @@ func (p *Package) Validate() error {
 	if _, err := hex.DecodeString(p.PackageID); err != nil {
 		return fmt.Errorf("package: package_id must be valid hex: %w", err)
 	}
-	if p.FormatVersion != "1.0" {
-		return fmt.Errorf("package: unsupported format_version: %s (expected 1.0)", p.FormatVersion)
+	if p.FormatVersion != "1.1" && p.FormatVersion != "1.0" {
+		return fmt.Errorf("package: unsupported format_version: %s (expected 1.0 or 1.1)", p.FormatVersion)
 	}
 	if err := p.Manifest.Validate(); err != nil {
 		return fmt.Errorf("package: invalid manifest: %w", err)
 	}
 	if len(p.ManifestSignature.SignedData) == 0 {
 		return fmt.Errorf("package: manifest_signature is required")
+	}
+	if len(p.MaintainerManifestSignature.SignedData) == 0 {
+		return fmt.Errorf("package: maintainer_manifest_signature is required")
 	}
 	if p.SizeBytes <= 0 {
 		return fmt.Errorf("package: size_bytes must be positive")

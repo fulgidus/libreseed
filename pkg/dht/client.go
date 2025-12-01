@@ -10,6 +10,25 @@ import (
 	"github.com/anacrolix/dht/v2"
 )
 
+// DHTClient defines the interface for DHT operations
+// This interface enables mocking and testing of DHT-dependent code
+type DHTClient interface {
+	// Start initializes and starts the DHT client
+	Start() error
+	// Stop gracefully shuts down the DHT client
+	Stop() error
+	// Announce announces a package to the DHT
+	Announce(infoHash [20]byte, port int) error
+	// GetPeers queries the DHT for peers seeding a package
+	GetPeers(infoHash [20]byte) ([]net.Addr, error)
+	// GetStats returns a snapshot of DHT statistics
+	GetStats() ClientStats
+	// NodeID returns the client's DHT node ID
+	NodeID() [20]byte
+	// IsStarted returns whether the client is running
+	IsStarted() bool
+}
+
 // Client wraps the anacrolix DHT client with libreseed-specific functionality
 type Client struct {
 	server  *dht.Server

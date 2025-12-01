@@ -14,18 +14,20 @@ import (
 // Matches the structure from pkg/daemon/package_manager.go
 // JSON tags match the API's PascalCase field names
 type PackageInfo struct {
-	PackageID          string    `json:"PackageID"`
-	Name               string    `json:"Name"`
-	Version            string    `json:"Version"`
-	Description        string    `json:"Description"`
-	FilePath           string    `json:"FilePath"`
-	FileHash           string    `json:"FileHash"`
-	FileSize           int64     `json:"FileSize"`
-	CreatedAt          time.Time `json:"CreatedAt"`
-	CreatorFingerprint string    `json:"CreatorFingerprint"`
-	ManifestSignature  string    `json:"ManifestSignature"`
-	AnnouncedToDHT     bool      `json:"AnnouncedToDHT"`
-	LastAnnounced      time.Time `json:"LastAnnounced"`
+	PackageID                   string    `json:"PackageID"`
+	Name                        string    `json:"Name"`
+	Version                     string    `json:"Version"`
+	Description                 string    `json:"Description"`
+	FilePath                    string    `json:"FilePath"`
+	FileHash                    string    `json:"FileHash"`
+	FileSize                    int64     `json:"FileSize"`
+	CreatedAt                   time.Time `json:"CreatedAt"`
+	CreatorFingerprint          string    `json:"CreatorFingerprint"`
+	MaintainerFingerprint       string    `json:"MaintainerFingerprint"`
+	ManifestSignature           string    `json:"ManifestSignature"`
+	MaintainerManifestSignature string    `json:"MaintainerManifestSignature"`
+	AnnouncedToDHT              bool      `json:"AnnouncedToDHT"`
+	LastAnnounced               time.Time `json:"LastAnnounced"`
 }
 
 // listResponse represents the API response from GET /packages/list
@@ -126,6 +128,12 @@ func listCommand(args []string) error {
 		fmt.Printf("    File Hash:   %s\n", pkg.FileHash)
 		fmt.Printf("    File Size:   %d bytes\n", pkg.FileSize)
 		fmt.Printf("    Creator:     %s\n", pkg.CreatorFingerprint)
+
+		// Display maintainer if different from creator
+		if pkg.MaintainerFingerprint != "" && pkg.MaintainerFingerprint != pkg.CreatorFingerprint {
+			fmt.Printf("    Maintainer:  %s\n", pkg.MaintainerFingerprint)
+		}
+
 		fmt.Printf("    Created At:  %s\n", pkg.CreatedAt.Format("2006-01-02 15:04:05 MST"))
 
 		if pkg.AnnouncedToDHT {

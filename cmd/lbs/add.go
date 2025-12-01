@@ -102,9 +102,18 @@ func addCommand(args []string) error {
 	}
 
 	fmt.Println("✓ Package added successfully")
-	fmt.Printf("  Package ID:  %s\n", result["package_id"])
-	fmt.Printf("  Fingerprint: %s\n", result["fingerprint"])
-	fmt.Printf("  File Hash:   %s\n", result["file_hash"])
+	fmt.Printf("  Package ID:           %s\n", result["package_id"])
+	fmt.Printf("  Creator Fingerprint:  %s\n", result["creator_fingerprint"])
+
+	// Display maintainer fingerprint if different from creator
+	maintainerFP, hasMaintainer := result["maintainer_fingerprint"].(string)
+	creatorFP, _ := result["creator_fingerprint"].(string)
+	if hasMaintainer && maintainerFP != "" && maintainerFP != creatorFP {
+		fmt.Printf("  Maintainer Fingerprint: %s\n", maintainerFP)
+	}
+
+	fmt.Printf("  File Hash:            %s\n", result["file_hash"])
+	fmt.Printf("  Verified:             %v\n", result["verified"])
 
 	return nil
 }

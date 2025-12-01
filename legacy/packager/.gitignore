@@ -1,0 +1,27 @@
+# Build artifacts
+/build/
+packager
+
+# Test artifacts
+*.test
+*.out
+coverage.txt
+
+# Temporary test directories
+*-test-*
+
+# Generated package files (for testing)
+*.tgz
+*.minimal.json
+*.key
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db

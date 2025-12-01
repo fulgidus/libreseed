@@ -1,0 +1,82 @@
+# LibreSeeder Configuration Example
+# Copy this file to seeder.yaml and customize as needed
+
+# Server configuration
+server:
+  # Port for Prometheus metrics endpoint
+  metrics_port: 9090
+  
+  # Port for health check endpoint
+  health_port: 8080
+
+# Network configuration
+network:
+  # Address to bind for network operations (BitTorrent, DHT)
+  bind_address: "0.0.0.0"
+  
+  # Port for BitTorrent and DHT protocol (TCP/UDP)
+  port: 6881
+  
+  # Enable IPv6 connectivity
+  enable_ipv6: true
+
+# DHT (Distributed Hash Table) configuration
+dht:
+  # Enable DHT for peer discovery and manifest distribution
+  enabled: true
+  
+  # DHT bootstrap peers for initial network join
+  # These are public DHT nodes used to join the network
+  bootstrap_peers:
+    - "router.bittorrent.com:6881"
+    - "dht.transmissionbt.com:6881"
+    - "router.utorrent.com:6881"
+
+# Storage configuration
+storage:
+  # Base directory for all data (manifests, torrents, cache)
+  data_dir: "./data"
+  
+  # Maximum disk usage (supports: KB, MB, GB, TB)
+  # Example: "50GB", "500MB", "1TB"
+  max_disk_usage: "50GB"
+  
+  # Cache size in megabytes for torrent data
+  cache_size_mb: 256
+
+# Rate limiting and resource constraints
+limits:
+  # Maximum upload rate in kilobytes per second
+  # Set to 0 for unlimited
+  max_upload_kbps: 0
+  
+  # Maximum download rate in kilobytes per second
+  # Set to 0 for unlimited
+  max_download_kbps: 0
+  
+  # Maximum number of simultaneous peer connections
+  max_connections: 200
+  
+  # Maximum number of active torrents to seed simultaneously
+  max_active_torrents: 100
+
+# Manifest management
+manifest:
+  # Manifest source (URL or local file path)
+  # Examples:
+  #   - "https://example.com/manifests/packages.yaml"
+  #   - "file:///path/to/local/manifest.yaml"
+  #   - Leave empty to disable automatic manifest loading
+  source: ""
+  
+  # Interval for checking manifest updates (duration format)
+  # Examples: "1h", "30m", "2h30m"
+  refresh_interval: 1h
+
+# Logging configuration
+log:
+  # Log level: debug, info, warn, error
+  level: "info"
+  
+  # Log format: json, console
+  format: "console"

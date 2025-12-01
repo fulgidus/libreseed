@@ -68,6 +68,11 @@ func main() {
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 			os.Exit(1)
 		}
+	case "apikey":
+		if err := apikeyCommand(args); err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			os.Exit(1)
+		}
 	case "help", "-h", "--help":
 		printUsage()
 	case "version", "--version", "-v":
@@ -91,6 +96,7 @@ func printUsage() {
 	fmt.Println("  lbs add <file> <name> <version> [description]    Add a package to the daemon")
 	fmt.Println("  lbs list                                         List all packages")
 	fmt.Println("  lbs remove <package_id>                          Remove a package from the daemon")
+	fmt.Println("  lbs apikey <subcommand>                          Manage API keys (use 'lbs apikey help')")
 	fmt.Println("  lbs version                                      Show version information")
 	fmt.Println("  lbs help                                         Show this help message")
 	fmt.Println()

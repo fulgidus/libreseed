@@ -108,17 +108,23 @@
 
 **Commit:** `1b4a49b` - feat: implement API infrastructure (T026)
 
-#### T027: Authentication System ⏳ **IN PROGRESS**
-- API key storage (`~/.libreseed/api-keys.yaml`)
-- Key generation (UUID v4)
-- Permission levels (read, write, admin)
-- Authentication middleware
-- CLI commands (`lbs api-key create/list/revoke`)
+#### T027: Authentication System ✅ **COMPLETE** (2025-12-01)
+- ✅ API key storage (`~/.libreseed/api-keys.yaml`)
+- ✅ Key generation (UUID v4 with SHA-256 hashing)
+- ✅ Permission levels (read, write, admin)
+- ✅ Authentication middleware with `X-API-Key` header
+- ✅ Rate limiting tracking (requests/minute)
+- ✅ Last used timestamp tracking
+- ✅ CLI commands (`lbs apikey generate/list/revoke/delete/help`)
 
 **Deliverables:**
-- `pkg/api/auth.go` - Authentication logic
-- `pkg/api/apikeys.go` - Key management
-- `cmd/lbs/apikey.go` - CLI commands
+- ✅ `pkg/api/auth.go` - Authentication logic and middleware
+- ✅ `pkg/api/apikeys.go` - Key management (316 lines)
+- ✅ `cmd/lbs/apikey.go` - Complete CLI commands (316 lines)
+- ✅ Integration with main CLI (`cmd/lbs/main.go`)
+- ✅ All tests passing (17/17 suites)
+
+**Commit:** (pending) - feat: implement API key authentication system (T027)
 
 #### T028: Package Management API 📋 **PENDING**
 - `GET /api/v1/packages` - List packages with pagination

@@ -7,6 +7,17 @@ e questo progetto aderisce al [Semantic Versioning](https://semver.org/lang/it/)
 
 ## [Non rilasciato]
 
+### In Pianificazione
+- HTTP API layer per accesso programmatico
+- Ricerca e scoperta pacchetti
+- Gestione versioning e aggiornamenti pacchetti
+- Workflow firma maintainer (co-signing)
+- Gestione dipendenze tra pacchetti
+
+## [0.3.0] - 2025-12-01
+
+**RELEASE MILESTONE: Package Management System Complete** ✅
+
 ### Aggiunto
 - **Supporto firma duale pacchetti (Creator + Maintainer)**:
   - CLI `lbs add` ora visualizza sia Creator che Maintainer fingerprint
@@ -14,10 +25,6 @@ e questo progetto aderisce al [Semantic Versioning](https://semver.org/lang/it/)
   - Struct `PackageInfo` esteso con `MaintainerFingerprint` e `MaintainerManifestSignature`
   - Visualizzazione condizionale: Maintainer mostrato solo se diverso dal Creator
   - File modificati: `cmd/lbs/add.go` (linee 104-116), `cmd/lbs/list.go` (linee 24-28, 132-135)
-
-## [0.3.0] - 2025-11-30
-
-### Aggiunto
 - Sistema completo di gestione pacchetti con firma crittografica
   - `pkg/crypto/keymanager.go` - Gestione ciclo di vita chiavi Ed25519 con fingerprinting
   - `pkg/daemon/package_manager.go` - Archiviazione metadata pacchetti con persistenza YAML
@@ -52,6 +59,24 @@ e questo progetto aderisce al [Semantic Versioning](https://semver.org/lang/it/)
 ### Modificato
 - Versione CLI bumped da "dev" a "v0.3.0"
 - Help message aggiornato con nuovi comandi `add` e `list`
+
+### Testing
+- **21/21 unit test passing** (100% success rate)
+- **Full E2E validation** completata con successo
+  - Package addition con dual signatures
+  - DHT announcement e persistence
+  - Package listing con metadata completi
+  - Package removal pulito (zero warnings)
+  - Daemon stability eccellente
+- Test suite completo documentato in `E2E_TEST_RESULTS.md` (275 righe)
+
+### Bugfix Post-Testing
+- **Fix test unitari** (`pkg/daemon/handlers_test.go`):
+  - Risolti 17 test falliti per inizializzazione incompleta `PackageInfo`
+  - Corretta computazione PackageID in funzioni helper di test
+- **Fix spurious warning**:
+  - Rimossa doppia cancellazione file in `handlePackageRemove` (linee 260-266)
+  - Eliminato warning "Failed to delete package file... no such file or directory"
 
 ### Note Tecniche
 - Go 1.22+ ha modificato il comportamento di `http.ServeMux`: richiesta sintassi esplicita HTTP method nelle route

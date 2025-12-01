@@ -251,18 +251,10 @@ func (d *Daemon) handlePackageRemove(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Remove from package manager
+	// Remove from package manager (this also deletes the file)
 	if err := d.packageManager.RemovePackage(packageID); err != nil {
 		http.Error(w, fmt.Sprintf("Failed to remove package: %v", err), http.StatusInternalServerError)
 		return
-	}
-
-	// Delete file from packages directory
-	filePath := packageInfo.FilePath
-	if err := os.Remove(filePath); err != nil {
-		// Log warning but don't fail the request
-		// The package metadata is already removed
-		fmt.Printf("Warning: Failed to delete package file %s: %v\n", filePath, err)
 	}
 
 	// Update daemon state

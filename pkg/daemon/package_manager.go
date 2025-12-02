@@ -307,6 +307,34 @@ func (pm *PackageManager) Count() int {
 	return len(pm.packages)
 }
 
+// UpdateMaintainerSignature updates the maintainer signature for a package.
+// This is called when a maintainer co-signs a package.
+//
+// Parameters:
+//   - packageID: the package ID to update
+//   - maintainerFingerprint: the maintainer's public key fingerprint
+//   - signature: the hex-encoded maintainer signature
+//
+// Returns error if the package doesn't exist or save fails.
+func (pm *PackageManager) UpdateMaintainerSignature(packageID, maintainerFingerprint, signature string) error {
+	pm.mu.Lock()
+	defer pm.mu.Unlock()
+
+	pkg, exists := pm.packages[packageID]
+	if !exists {
+		return fmt.Errorf("package with ID %s not found", packageID)
+	}
+
+	pkg.MaintainerFingerprint = maintainerFingerprint
+	pkg.MaintainerManifestSignature = signature
+
+	pm.mu.Unlock()
+	err := pm.SaveState()
+	pm.mu.Lock()
+
+	return err
+}
+
 // validatePackageInfo validates that PackageInfo contains all required fields.
 func (pm *PackageManager) validatePackageInfo(info *PackageInfo) error {
 	if info == nil {

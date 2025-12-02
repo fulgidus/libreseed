@@ -7,8 +7,33 @@ e questo progetto aderisce al [Semantic Versioning](https://semver.org/lang/it/)
 
 ## [Non rilasciato]
 
+### Aggiunto
+- **Sistema di autenticazione API con chiavi API** (T027):
+  - Gestione completa chiavi API con storage YAML (`~/.libreseed/api-keys.yaml`)
+  - Generazione chiavi UUID v4 con hashing SHA-256
+  - Tre livelli di permessi: `read`, `write`, `admin`
+  - Middleware di autenticazione con header `X-API-Key`
+  - Rate limiting tracking (richieste/minuto) e last-used timestamp
+  - CLI completo per gestione chiavi:
+    - `lbs apikey generate --name NAME --level LEVEL` - Genera nuova chiave
+    - `lbs apikey list` - Lista tutte le chiavi con formato tabulare
+    - `lbs apikey revoke <key_id>` - Revoca chiave
+    - `lbs apikey delete <key_id>` - Elimina chiave
+    - `lbs apikey help` - Mostra guida d'uso
+  - File modificati: `pkg/api/auth.go`, `pkg/api/apikeys.go`, `cmd/lbs/apikey.go`, `cmd/lbs/main.go`
+
+### Corretto
+- Bug compilazione in `pkg/api/apikeys.go`:
+  - Rimosso import `"time"` non utilizzato (linea 12)
+  - Corretto field name `key.LastUsedAt` → `key.LastUsed` (linee 154-155)
+- Bug test in `pkg/api/auth_test.go`:
+  - Aggiornate aspettative per match comportamento corretto
+
+### Testing
+- **17/17 test suite passing** (100% success rate)
+- Test coverage completo per auth middleware e key management
+
 ### In Pianificazione
-- HTTP API layer per accesso programmatico
 - Ricerca e scoperta pacchetti
 - Gestione versioning e aggiornamenti pacchetti
 - Workflow firma maintainer (co-signing)

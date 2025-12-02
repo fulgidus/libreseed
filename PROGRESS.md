@@ -1,12 +1,12 @@
 # Libreseed Development Progress
 
-**Last Updated:** 2024-11-30
+**Last Updated:** 2025-12-01
 
 ---
 
 ## 📊 Overall Status
 
-**Current Phase:** Phase 3 (Daemon Implementation) - **COMPLETE** ✅
+**Current Phase:** Phase 4 (HTTP API Layer) - **IN PROGRESS** 🔄
 
 ---
 
@@ -39,42 +39,198 @@
 
 ---
 
-### Phase 3: Daemon Implementation (T013-T025) ✅ **COMPLETE**
+### Phase 3: Package Management System (T013-T025) ✅ **COMPLETE**
 
-#### Daemon Core (`pkg/daemon/`)
-- ✅ **T013:** `config.go` - Configuration with validation
-- ✅ **T014:** `state.go` - Thread-safe runtime state management
-- ✅ **T015:** `statistics.go` - Performance metrics tracking
-- ✅ **T016-T022:** `daemon.go` - HTTP server and lifecycle management
+**Release:** v0.3.0 (2025-12-01)
 
-**HTTP API Endpoints:**
-- `GET /health` - Health check
-- `GET /status` - Daemon state (uptime, packages, peers, DHT)
-- `GET /stats` - Performance statistics
-- `POST /shutdown` - Graceful shutdown
+#### Core Package Management (`pkg/daemon/`)
+- ✅ **T013:** Package loading and validation
+- ✅ **T014:** Dual signature verification system
+- ✅ **T015:** Package state management
+- ✅ **T016:** Statistics tracking (seeding, peers, transfer)
 
-#### CLI Commands (`cmd/libreseed-daemon/`)
-- ✅ **T023:** `main.go` + `start.go` - Start daemon command
-  - Configuration loading (default: `~/.libreseed/config.yaml`)
-  - PID file management (default: `~/.libreseed/daemon.pid`)
-  - Signal handling (SIGINT, SIGTERM)
-  - Graceful startup and shutdown
-  
-- ✅ **T024:** `stats.go` - Statistics display command
-  - Fetches stats from HTTP API
-  - Human-readable formatting (bytes, rates, counts)
-  - Connection error handling
-  
-- ✅ **T025:** `stop.go` - Graceful shutdown command
-  - Sends shutdown request via HTTP API
-  - Waits for daemon termination
-  - PID file verification
+#### Daemon Operations (`pkg/daemon/`)
+- ✅ **T017-T022:** HTTP/Unix socket dual interface
+  - Internal HTTP API (port 8080)
+  - Unix socket for CLI communication
+  - Package management handlers (add, list, remove, restart)
+  - Status and statistics endpoints
 
-**Issues Fixed During Build:**
-1. ✅ `Start()` method signature (removed context parameter)
-2. ✅ Config field name (`HTTPAddr` → `ListenAddr`)
-3. ✅ `LoadConfig()` return values handling
-4. ✅ Unused import cleanup
+#### CLI Commands (`cmd/lbs/`, `cmd/lbsd/`)
+- ✅ **T023:** `lbs add` - Add packages with validation
+- ✅ **T024:** `lbs list` - List seeding packages
+- ✅ **T025:** `lbs remove` - Remove packages safely
+- ✅ **T025:** `lbs restart` - Restart seeding for packages
+- ✅ **T025:** `lbs start/stop/status/stats` - Daemon control
+
+**Test Coverage:**
+- ✅ 21/21 integration tests passing
+- ✅ Dual signature verification validated
+- ✅ Package lifecycle operations tested
+- ✅ Error handling and edge cases covered
+
+**Issues Fixed:**
+1. ✅ 17 test failures post-implementation (all resolved)
+2. ✅ Duplicate package deletion warning logic
+3. ✅ Package loader integration
+4. ✅ Statistics aggregation accuracy
+
+---
+
+## 🔄 Current Phase: Phase 4 - HTTP API Layer
+
+**Status:** Infrastructure Complete, Authentication In Progress  
+**Specification:** `PHASE4_SPECIFICATION.md` (complete)  
+**Timeline:** 4-5 weeks estimated  
+**Current Task:** T027 (Authentication System)
+
+### Phase 4 Overview
+
+**Goal:** Add public HTTP REST API for external tool integration and maintainer workflows
+
+**Tasks (T026-T035):**
+
+#### T026: API Infrastructure ✅ **COMPLETE** (2025-12-01)
+- ✅ Created `pkg/api/` package structure
+- ✅ Implemented versioned router (`/api/v1/*`)
+- ✅ Added middleware stack (request ID, logging, CORS, panic recovery)
+- ✅ Created error handling utilities with error codes
+- ✅ Added response helpers and pagination support
+- ✅ Health and version endpoints implemented
+- ✅ Unit tests (all passing)
+
+**Deliverables:**
+- ✅ `pkg/api/router.go` - Versioned router with endpoints
+- ✅ `pkg/api/middleware.go` - Complete middleware chain
+- ✅ `pkg/api/errors.go` - Standardized error handling
+- ✅ `pkg/api/responses.go` - Response utilities with pagination
+- ✅ `pkg/api/router_test.go` - Unit tests
+
+**Commit:** `1b4a49b` - feat: implement API infrastructure (T026)
+
+#### T027: Authentication System ✅ **COMPLETE** (2025-12-01)
+- ✅ API key storage (`~/.libreseed/api-keys.yaml`)
+- ✅ Key generation (UUID v4 with SHA-256 hashing)
+- ✅ Permission levels (read, write, admin)
+- ✅ Authentication middleware with `X-API-Key` header
+- ✅ Rate limiting tracking (requests/minute)
+- ✅ Last used timestamp tracking
+- ✅ CLI commands (`lbs apikey generate/list/revoke/delete/help`)
+
+**Deliverables:**
+- ✅ `pkg/api/auth.go` - Authentication logic and middleware
+- ✅ `pkg/api/apikeys.go` - Key management (316 lines)
+- ✅ `cmd/lbs/apikey.go` - Complete CLI commands (316 lines)
+- ✅ Integration with main CLI (`cmd/lbs/main.go`)
+- ✅ All tests passing (17/17 suites)
+
+**Commit:** (pending) - feat: implement API key authentication system (T027)
+
+#### T028: Package Management API 📋 **PENDING**
+- `GET /api/v1/packages` - List packages with pagination
+- `GET /api/v1/packages/{id}` - Get package details
+- `POST /api/v1/packages` - Add package
+- `DELETE /api/v1/packages/{id}` - Remove package
+- `POST /api/v1/packages/{id}/restart` - Restart seeding
+
+**Deliverables:**
+- `pkg/api/handlers/packages.go`
+- Package response models
+- Query parameter validation
+
+#### T029: Maintainer Co-Signing Workflow 📋 **PENDING**
+- `POST /api/v1/packages/{id}/request-signature` - Request co-sign
+- `POST /api/v1/packages/{id}/approve-signature` - Approve request
+- `GET /api/v1/packages/{id}/signature-requests` - List pending
+- Webhook notifications for signature requests
+- Email notification integration
+
+**Deliverables:**
+- `pkg/api/handlers/signatures.go`
+- `pkg/daemon/signature_manager.go`
+- Notification system
+
+#### T030: DHT API Endpoints 📋 **PENDING**
+- `GET /api/v1/dht/status` - DHT network status
+- `GET /api/v1/dht/nodes` - Connected DHT nodes
+- `GET /api/v1/packages/{id}/peers` - Package peers
+- `POST /api/v1/dht/bootstrap` - Manual bootstrap
+
+**Deliverables:**
+- `pkg/api/handlers/dht.go`
+- DHT status models
+
+#### T031: Statistics API 📋 **PENDING**
+- `GET /api/v1/stats/global` - Global daemon statistics
+- `GET /api/v1/stats/packages/{id}` - Per-package stats
+- `GET /api/v1/stats/history` - Historical data (time-series)
+- Statistics aggregation endpoints
+
+**Deliverables:**
+- `pkg/api/handlers/stats.go`
+- Time-series data structures
+
+#### T032: Rate Limiting & Throttling 📋 **PENDING**
+- Token bucket rate limiter
+- Per-IP and per-API-key limits
+- Configurable rate limits
+- Rate limit headers (X-RateLimit-*)
+- 429 Too Many Requests responses
+
+**Deliverables:**
+- `pkg/api/ratelimit.go`
+- Rate limit middleware
+- Configuration options
+
+#### T033: API Configuration 📋 **PENDING**
+- Add API section to `config.yaml`
+- HTTP API enable/disable toggle
+- Port configuration
+- CORS settings
+- Rate limit configuration
+
+**Example Config:**
+```yaml
+api:
+  enabled: true
+  listen_addr: "localhost:8081"
+  cors:
+    allowed_origins: ["*"]
+    allowed_methods: ["GET", "POST", "DELETE"]
+  rate_limit:
+    requests_per_minute: 60
+    burst: 10
+```
+
+**Deliverables:**
+- Updated `pkg/daemon/config.go`
+- Configuration validation
+
+#### T034: API Documentation 📋 **PENDING**
+- OpenAPI 3.0 specification (`docs/openapi.yaml`)
+- Swagger UI endpoint (`/api-docs`)
+- README with API usage examples
+- Authentication guide
+- Webhook integration guide
+
+**Deliverables:**
+- `docs/openapi.yaml`
+- `docs/API.md`
+- Interactive API documentation
+
+#### T035: API Testing 📋 **PENDING**
+- Unit tests for all endpoints
+- Authentication flow tests
+- Rate limiting tests
+- Integration tests (end-to-end API calls)
+- Load testing (basic performance validation)
+
+**Test Coverage Target:** 90%+
+
+**Deliverables:**
+- `pkg/api/handlers/*_test.go`
+- `pkg/api/auth_test.go`
+- Integration test suite
 
 ---
 
@@ -83,78 +239,86 @@
 ```
 libreseed/
 ├── cmd/
-│   └── libreseed-daemon/     ✅ CLI application
-│       ├── main.go            - Command routing
-│       ├── start.go           - Start daemon
-│       ├── stats.go           - Show statistics
-│       └── stop.go            - Stop daemon
+│   ├── lbs/                   ✅ CLI application
+│   │   ├── main.go            - Command routing
+│   │   ├── add.go             - Add packages
+│   │   ├── list.go            - List packages
+│   │   ├── remove.go          - Remove packages
+│   │   ├── restart.go         - Restart seeding
+│   │   ├── start.go           - Start daemon
+│   │   ├── stop.go            - Stop daemon
+│   │   ├── status.go          - Daemon status
+│   │   └── stats.go           - Statistics
+│   └── lbsd/                  ✅ Daemon entry point
+│       └── main.go            - Daemon startup
 ├── pkg/
+│   ├── api/                   🔄 HTTP API layer (Phase 4)
+│   │   ├── router.go          - API router
+│   │   ├── middleware.go      - Middleware stack
+│   │   ├── auth.go            - Authentication
+│   │   ├── errors.go          - Error handling
+│   │   ├── responses.go       - Response helpers
+│   │   └── handlers/          - Endpoint handlers
+│   │       ├── packages.go
+│   │       ├── signatures.go
+│   │       ├── dht.go
+│   │       └── stats.go
 │   ├── crypto/                ✅ Cryptography
 │   │   ├── keys.go            - Ed25519 keys
+│   │   ├── keymanager.go      - Key management
 │   │   └── signer.go          - Signing
 │   ├── daemon/                ✅ Daemon core
 │   │   ├── config.go          - Configuration
+│   │   ├── daemon.go          - Main daemon
+│   │   ├── handlers.go        - HTTP/socket handlers
+│   │   ├── package_manager.go - Package operations
 │   │   ├── state.go           - Runtime state
-│   │   ├── statistics.go      - Metrics
-│   │   └── daemon.go          - HTTP server
+│   │   └── statistics.go      - Metrics
+│   ├── dht/                   ✅ DHT client
+│   │   ├── client.go          - DHT operations
+│   │   ├── announcer.go       - Package announcements
+│   │   ├── discovery.go       - Package discovery
+│   │   └── peers.go           - Peer management
 │   ├── package/               ✅ Package management
 │   │   ├── manifest.go        - Manifests
-│   │   └── description.go     - DHT descriptions
+│   │   ├── description.go     - DHT descriptions
+│   │   └── loader.go          - Package loading
 │   └── storage/               ✅ Storage utilities
 │       ├── metadata.go        - YAML helpers
 │       └── filesystem.go      - File ops
-├── bin/
-│   └── libreseed-daemon       ✅ Compiled binary (9.9 MB)
+├── docs/
+│   ├── openapi.yaml           🔄 OpenAPI spec (Phase 4)
+│   └── API.md                 🔄 API guide (Phase 4)
+├── scripts/
+│   └── test-package-management.sh  ✅ Integration tests
+├── PHASE4_SPECIFICATION.md    ✅ Phase 4 design document
+├── PROGRESS.md                ✅ This file
+├── CHANGELOG.md               ✅ Release history
 ├── go.mod
-├── go.sum
-└── PROGRESS.md
+└── go.sum
 ```
 
 ---
 
-## 🎯 CLI Usage
+## 🎯 Phase 4 Goals
 
-### Start Daemon
-```bash
-# Start with default config (~/.libreseed/config.yaml)
-./bin/libreseed-daemon start
+### Primary Objectives
+1. ✅ **Specification Complete** - Comprehensive API design document
+2. ⏳ **API Infrastructure** - Router, middleware, error handling
+3. 📋 **Authentication** - Secure API key system
+4. 📋 **Package API** - RESTful package management endpoints
+5. 📋 **Maintainer Workflow** - Co-signing request/approval system
+6. 📋 **Documentation** - OpenAPI spec and usage guides
+7. 📋 **Testing** - Comprehensive API test coverage
 
-# Start with custom config
-./bin/libreseed-daemon start --config /path/to/config.yaml
-```
-
-**Features:**
-- Automatic default config creation
-- PID file management
-- Signal handling (Ctrl+C for graceful shutdown)
-- Directory creation for storage and config
-
-**Default Configuration:**
-- HTTP API: `localhost:8080`
-- DHT Port: `6881`
-- Storage: `~/.libreseed/packages`
-
-### Show Statistics
-```bash
-./bin/libreseed-daemon stats
-```
-
-**Output:**
-- Transfer statistics (uploaded/downloaded bytes)
-- Current rates (upload/download speeds)
-- Peak rates
-- Active packages and peer count
-
-### Stop Daemon
-```bash
-./bin/libreseed-daemon stop
-```
-
-**Features:**
-- Graceful shutdown via HTTP API
-- Waits for daemon termination
-- 30-second timeout
-- PID file cleanup verification
+### Success Criteria
+- [ ] All 10 tasks (T026-T035) completed
+- [ ] OpenAPI 3.0 specification published
+- [ ] API authentication working with 3 permission levels
+- [ ] Maintainer co-signing workflow functional
+- [ ] 90%+ test coverage for API endpoints
+- [ ] Swagger UI accessible at `/api-docs`
+- [ ] Example integrations documented
 
 ---
 
@@ -163,135 +327,107 @@ libreseed/
 ### Module Information
 - **Module Path:** `github.com/libreseed/libreseed`
 - **Go Version:** 1.21+
-- **Dependencies:** Standard library only (no external dependencies yet)
+- **Current Version:** v0.3.0
 
 ### Key Technologies
-- **Cryptography:** Ed25519 (signing)
-- **Serialization:** YAML (config and metadata)
-- **Concurrency:** RWMutex for thread-safe state
-- **HTTP:** Standard library HTTP server
-- **Process Management:** PID files, signal handling
+- **Cryptography:** Ed25519 (signing), SHA-256 (hashing)
+- **DHT:** anacrolix/dht (BitTorrent DHT)
+- **Torrent:** anacrolix/torrent (seeding)
+- **Serialization:** YAML (config), JSON (API)
+- **HTTP:** Standard library (both internal and API servers)
+- **IPC:** Unix domain sockets (CLI ↔ daemon)
 
-### Configuration
-```yaml
-# Default ~/.libreseed/config.yaml
-listen_addr: "localhost:8080"  # HTTP API address
-dht_port: 6881                 # DHT listening port
-storage_dir: "~/.libreseed/packages"  # Package storage
-```
-
----
-
-## ✅ Phase 3 Deliverables Summary
-
-**All User Stories Completed:**
-1. ✅ **User Story 6:** Daemon should persist runtime state
-   - Thread-safe state management
-   - Status tracking (starting, running, stopping, stopped, error)
-   - Package/peer/DHT node tracking
-   - Uptime and error recording
-
-2. ✅ **User Story 6:** Daemon should expose HTTP API
-   - Health checks
-   - Status queries
-   - Statistics retrieval
-   - Remote shutdown
-
-3. ✅ **User Story 6:** CLI should manage daemon lifecycle
-   - Start with config management
-   - PID-based process tracking
-   - Statistics display
-   - Graceful shutdown
+### Architecture
+- **Daemon:** Long-running background process
+- **CLI:** Client communicating via Unix socket
+- **HTTP API:** Public REST API (port 8081)
+- **Internal API:** Management interface (port 8080)
+- **DHT Client:** Peer discovery and announcements
 
 ---
 
-## 📈 Code Quality
+## 📈 Release History
 
-### Build Status
-- ✅ **Compiles cleanly** (no warnings or errors)
-- ✅ **Module verified** (all dependencies resolved)
-- ✅ **Binary created** (9.9 MB, x86-64 ELF)
+### v0.3.0 (2025-12-01) - Package Management
+**Features:**
+- ✅ Dual signature package verification
+- ✅ Package lifecycle management (add, list, remove, restart)
+- ✅ HTTP/Unix socket dual interface
+- ✅ Comprehensive CLI commands
+- ✅ Statistics tracking and reporting
 
-### Error Handling
-- ✅ Configuration validation
-- ✅ Graceful shutdown on errors
-- ✅ HTTP error responses
-- ✅ PID file collision detection
-- ✅ Process existence checking
+**Testing:**
+- ✅ 21/21 integration tests passing
+- ✅ Dual signature validation tested
+- ✅ Error handling validated
 
-### Concurrency Safety
-- ✅ RWMutex for state reads/writes
-- ✅ Thread-safe statistics updates
-- ✅ Atomic rate calculations
-- ✅ Snapshot methods for safe data access
+### v0.2.0 (Previous)
+- ✅ DHT integration
+- ✅ Peer discovery
+- ✅ Package announcements
+
+### v0.1.0 (Initial)
+- ✅ Basic daemon infrastructure
+- ✅ Configuration management
+- ✅ State tracking
 
 ---
 
-## 🚀 Next Steps (Phase 4: DHT Integration)
+## 🚀 Upcoming Work
 
-**User Story 7:** Daemon should participate in DHT network
+### Immediate Next Steps (This Week)
+1. ⏳ **T026: API Infrastructure** - Router and middleware setup
+2. 📋 **T027: Authentication** - API key system implementation
+3. 📋 **T028: Package API** - RESTful endpoints
 
-**Tasks (T026-T035):**
-1. **DHT Client Implementation**
-   - Initialize DHT client
-   - Join DHT network
-   - Bootstrap from known nodes
-   - Handle DHT events
+### Week 2-3
+4. 📋 **T029: Maintainer Workflow** - Co-signing system
+5. 📋 **T030: DHT API** - DHT status endpoints
+6. 📋 **T031: Statistics API** - Stats aggregation
 
-2. **Package Announcement**
-   - Announce packages to DHT
-   - Store package metadata
-   - Update announcements periodically
+### Week 4
+7. 📋 **T032: Rate Limiting** - Throttling implementation
+8. 📋 **T033: Configuration** - API config integration
+9. 📋 **T034: Documentation** - OpenAPI spec
+10. 📋 **T035: Testing** - Comprehensive test suite
 
-3. **Package Discovery**
-   - Query DHT for packages
-   - Resolve package metadata
-   - Cache query results
-
-4. **Peer Discovery**
-   - Find peers seeding packages
-   - Track peer availability
-   - Manage peer connections
-
-**Estimated Effort:** Medium (DHT integration requires external library)
+### Future Phases (Post-Phase 4)
+- **Phase 5:** Web Frontend (optional)
+- **Phase 6:** Advanced Features (caching, mirrors, multi-seeder)
+- **Phase 7:** Production Hardening (monitoring, logging, alerts)
 
 ---
 
 ## 📝 Notes
 
-### Known Limitations
-- ⚠️ No actual BitTorrent/DHT integration yet (Phase 4)
-- ⚠️ No package seeding implementation yet (Phase 4)
-- ⚠️ Statistics are tracked but not yet populated (requires seeding)
-- ⚠️ No authentication on HTTP API (future enhancement)
-- ⚠️ No TLS support yet (future enhancement)
+### Phase 4 Design Decisions
+- **Dual Interface:** Keep Unix socket for CLI, add HTTP API for external tools
+- **Versioned API:** `/api/v1/*` for future compatibility
+- **Authentication:** API key system with read/write/admin permissions
+- **No Breaking Changes:** All existing functionality preserved
+- **OpenAPI First:** Document API with industry-standard OpenAPI 3.0
 
-### Design Decisions
-- **PID-based tracking** for daemon lifecycle (simple, Unix-standard)
-- **YAML configuration** for human-readability
-- **HTTP API** for simplicity and universality
-- **Thread-safe state** to prevent race conditions
-- **Snapshot pattern** for safe data access
+### Known Phase 4 Challenges
+- ⚠️ Rate limiting complexity (per-IP + per-key)
+- ⚠️ Webhook reliability (retry logic, failure handling)
+- ⚠️ API key storage security (consider encryption)
+- ⚠️ CORS configuration (security vs. usability)
 
 ---
 
-## 🎉 Phase 3 Completion
+## 🎉 Milestone Summary
 
-**Phase 3 Status:** ✅ **COMPLETE**
+**Phase 1:** ✅ Foundation  
+**Phase 2:** ✅ Core Components  
+**Phase 3:** ✅ Package Management  
+**Phase 4:** 🔄 HTTP API Layer (In Progress)
 
-All daemon infrastructure is in place and working:
-- ✅ Configuration management
-- ✅ State tracking
-- ✅ Statistics collection
-- ✅ HTTP API server
-- ✅ CLI commands (start/stop/stats)
-- ✅ Process lifecycle management
-
-**Build Verified:** Binary compiles and runs successfully.
-
-**Ready for:** Phase 4 (DHT Integration) and functional testing.
+**Lines of Code:** ~5,000+ (phases 1-3)  
+**Test Coverage:** 21 integration tests  
+**Documentation:** 4 major specification documents
 
 ---
 
 **Project Status:** 🟢 **On Track**  
-**Next Milestone:** Phase 4 - DHT Network Integration
+**Next Milestone:** Phase 4 - HTTP REST API Layer (T026 starting)  
+**Branch:** `004-http-api-layer`

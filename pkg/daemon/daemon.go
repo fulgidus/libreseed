@@ -35,8 +35,9 @@ type Daemon struct {
 	peerManager *dht.PeerManager
 
 	// Package management components
-	keyManager     *crypto.KeyManager
-	packageManager *PackageManager
+	keyManager         *crypto.KeyManager
+	packageManager     *PackageManager
+	maintainerRegistry *MaintainerRegistry
 
 	// Channels for lifecycle management
 	stopCh    chan struct{}
@@ -94,6 +95,14 @@ func New(config *DaemonConfig) (*Daemon, error) {
 		return nil, fmt.Errorf("failed to load package state: %w", err)
 	}
 	d.packageManager = packageManager
+
+	// Initialize MaintainerRegistry
+	maintainersFile := filepath.Join(baseDir, "maintainers.yaml")
+	maintainerRegistry, err := NewMaintainerRegistry(maintainersFile)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create maintainer registry: %w", err)
+	}
+	d.maintainerRegistry = maintainerRegistry
 
 	// Initialize DHT components
 	dhtConfig := &dht.ClientConfig{
@@ -313,6 +322,17 @@ func (d *Daemon) registerRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /packages/add", d.handlePackageAdd)
 	mux.HandleFunc("GET /packages/list", d.handlePackageList)
 	mux.HandleFunc("DELETE /packages/remove", d.handlePackageRemove)
+
+	// Maintainer management endpoints
+	mux.HandleFunc("GET /maintainers", d.handleMaintainerList)
+	mux.HandleFunc("GET /maintainers/", d.handleMaintainerGet)
+	mux.HandleFunc("POST /maintainers", d.handleMaintainerRegister)
+	mux.HandleFunc("POST /maintainers/activate/", d.handleMaintainerActivate)
+	mux.HandleFunc("POST /maintainers/deactivate/", d.handleMaintainerDeactivate)
+
+	// Signature management endpoints
+	mux.HandleFunc("GET /signatures/pending", d.handlePendingSignatures)
+	mux.HandleFunc("POST /packages/sign/", d.handlePackageSign)
 
 	// DHT-specific endpoints (only if DHT is enabled)
 	if d.config.EnableDHT {
